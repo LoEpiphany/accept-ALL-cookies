@@ -1685,7 +1685,8 @@ function defaultData(){
             totalAdded:0, totalScan:0, totalDiscardExpired:0, streakMax:0,
             customCatCreated:0, customLocCreated:0, totalDragMoved:0,
             luxuryAdded:0, perfectItem:0, nightAdded:0, allCatsUsed:0, emptiedAll:0, sameDayBoth:0,
-            totalRebuy:0, totalLookup:0, lastRecordDate:'' },
+          totalRebuy: 0, totalLookup: 0, lastRecordDate: '',
+        lastAlertCount: 0},
     settings:{ themeColor:'#4A9D7F', dark:false, lang:'zh', warnDays:7, warrantyWarnDays:30, enableNet:false,
                remindTime:'22:00', layoutOnboarded:false, onboarded:false, aiApiKey:'', baiduApiKey:'', baiduSecretKey:'',
                registeredAt: 0, v9Migrated: false }
@@ -2132,18 +2133,24 @@ function renderTabbar(){
   }).join('') + '</div>';
 }
 function activeItems(){ return S.items.filter(i => !i.deletedAt); }
-function alertCount(){
-  let n = 0;
-  activeItems().forEach(i=>{
-    const st = expStatus(i);
-    if(st==='expired' || st==='soon' || isLow(i)) n++;
-    else {
-      const w = warrantyStatus(i);
-      if(w && (w.kind==='expired' || w.kind==='soon')) n++;
+    function alertCount() {
+        let n = 0;
+        activeItems().forEach(i => {
+            const st = expStatus(i);
+            const isDepleted = (+i.qty || 0) <= 0;
+            if (isDepleted || st === 'expired' || st === 'soon' || isLow(i)) n++;
+            else {
+                const w = warrantyStatus(i);
+                if (w && (w.kind === 'expired' || w.kind === 'soon')) n++;
+            }
+        });
+
+        // 如果当前正处于“提醒中心”页面，直接返回 0，不显示红点
+        if (UI.tab === 'alerts') return 0;
+
+        // 只有当目前的总异常数量 大于 你上次看过的数量时，才显示红点（增量提醒）
+        return Math.max(0, n - (S.stats.lastAlertCount || 0));
     }
-  });
-  return n;
-}
 function render(opts){
   opts = opts || {};
   if(isShareMode()){ renderShareView(); return; }
@@ -2192,176 +2199,203 @@ function render(opts){
             '</div>';
         document.body.appendChild(bar);
     }
-function itemRow(it){
-  const st = expStatus(it);
-  const cat = catOf(it.catId), loc = locOf(it.locId);
-  const important = isImportantItem(it);
-  const usingOpened = isUsingOpenedExpiry(it);
-  const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
-  let badge = '';
-  if(st==='expired') badge = '<span class="tag danger">'+T('expired')+'</span>';
-  else if(st==='soon') badge = '<span class="tag warn">'+esc(expText(it))+'</span>';
-  else if(isLow(it))   badge = '<span class="tag danger">'+T('low')+'</span>';
-  else if(idle) badge = '<span class="tag idle">闲置</span>';
-  let openTag = '';
-  if(it.opened) openTag = '<span class="tag open">'+T('opened_tag')+'</span>';
-  const parts = [];
-  if(cat) parts.push(esc(nm(cat)));
-  if(loc) parts.push(esc(nm(loc)));
-  if(!parts.length) parts.push(T('uncat'));
-  const qty = (+it.qty||0) ? ('×'+(+it.qty) + (it.unit?it.unit:'')) : '';
-  let daysEl = '';
-  const dd = daysUntil(effectiveExpDate(it));
-  if(dd !== null){
-    let cls = 'days';
-    if(dd < 0) cls += ' over';
-    else if(dd <= (S.settings.warnDays||7)) cls += ' soon';
-    else if(usingOpened) cls += ' open';
-    let txt = '';
-    if(dd < 0) txt = T('exp_over',{n:-dd});
-    else if(dd === 0) txt = T('exp_today');
-    else txt = '剩 '+dd+' 天';
-    daysEl = '<div class="'+cls+'">'+esc(txt)+'</div>';
-  } else if(idle){
-    daysEl = '<div class="days">'+idleDays(it)+' 天未用</div>';
-  }
-  let iconHtml;
-  if(it.photo){ iconHtml = '<div class="ic"><img src="'+it.photo+'" alt=""></div>'; }
-  else{ iconHtml = '<div class="ic">'+catIcon(cat?cat.icon:'c_other')+'</div>'; }
-  const selected = UI.organizeMode && UI.selectedIds.has(it.id);
-  const cls = 'item'+(important?' important':'')+(selected?' selected':'');
-  const cbx = UI.organizeMode ? '<div class="cbx">'+ICON.check+'</div>' : '';
-  const actAttr = UI.organizeMode ? 'data-act="toggleSelect"' : 'data-act="openItem"';
-  return '<div class="'+cls+'" '+actAttr+' data-id="'+it.id+'">'+
-    cbx+iconHtml+
-    '<div class="mid"><div class="nm">'+esc(it.name||'—')+'</div>'+
-    '<div class="sub">'+parts.join(' · ')+'</div></div>'+
-    '<div class="rt">'+(qty?'<div class="qty">'+esc(qty)+'</div>':'')+badge+openTag+daysEl+'</div></div>';
-}
-function compactItemRow(it){
-  const st = expStatus(it);
-  const cat = catOf(it.catId);
-  const important = isImportantItem(it);
-  const qty = (+it.qty||0);
-  const selected = UI.organizeMode && UI.selectedIds.has(it.id);
-  const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
-  let stateCls = '';
-  if(st === 'expired' || isLow(it)) stateCls = ' st-danger';
-  else if(st === 'soon') stateCls = ' st-warn';
-  else if(idle) stateCls = ' st-idle';
-  let iconHtml;
-  if(it.photo){ iconHtml = '<div class="ic"><img src="'+it.photo+'" alt=""></div>'; }
-  else{ iconHtml = '<div class="ic">'+catIcon(cat?cat.icon:'c_other')+'</div>'; }
-  const actAttr = UI.organizeMode ? 'data-act="toggleSelect"' : 'data-act="openItem"';
-  return '<div class="item compact'+stateCls+(selected?' selected':'')+(important?' important':'')+'" '+actAttr+' data-id="'+it.id+'">'+
-    (stateCls ? '<span class="state-dot"></span>' : '')+
-    (qty > 1 ? '<span class="qty-badge">×'+qty+'</span>' : '')+
-    iconHtml+
-    '<div class="nm">'+esc(it.name||'—')+'</div>'+
-  '</div>';
-}
-function viewHome(){
-  const items = activeItems();
-  const totalQty = items.reduce((a,b)=>a+(+b.qty||0),0);
-  const totalVal = items.reduce((a,b)=>a+(+b.price||0)*(+b.qty||0),0);
-  const expired = items.filter(i=>expStatus(i)==='expired');
-  const soon = items.filter(i=>expStatus(i)==='soon');
-  const idleItems = items.filter(i => isIdle(i) && expStatus(i) !== 'expired' && expStatus(i) !== 'soon');
-  let h = '';
-  if(shouldRemindRecord()){
-    h += '<div class="remind-bar" data-act="doRecordAction">'+ICON.bell+
-      '<div class="txt"><div style="font-weight:600">'+T('daily_remind_title')+'</div>'+
-      '<div style="font-size:12px;margin-top:2px;opacity:.85">'+T('daily_remind_desc')+'</div></div></div>';
-  }
-  if(expired.length > 0){
-    h += '<div class="field-bar">'+ICON.leaf+'<div class="txt">'+T('field_clean_tip')+'</div></div>';
-  }
-  if(!items.length){ h += '<div class="empty">'+ICON.box+'<div>'+T('empty_items')+'</div></div>'; return h; }
-  h += weekReportCardHtml();
-  const importantItems = items.filter(isImportantItem);
-  const warrantyAlert = items.filter(i=>{ const w = warrantyStatus(i); return w && (w.kind==='soon'||w.kind==='expired'); });
-  if(importantItems.length > 0 || warrantyAlert.length > 0){
-    let sub = T('focus_sub');
-    let cnt = importantItems.length;
-    if(warrantyAlert.length > 0){ sub += ' · ' + T('warranty_short') + ' ' + warrantyAlert.length; }
-    h += '<div class="focus-banner" data-act="gotoFocus">'+
-      '<div class="fbi">'+ICON.shield+'</div>'+
-      '<div class="fbtxt"><div class="fbttl">'+T('focus_title')+'</div><div class="fbsub">'+esc(sub)+'</div></div>'+
-      '<div class="fbnum">'+cnt+'</div>'+
-    '</div>';
-  }
-  if(idleItems.length > 0){
-    h += '<div class="idle-bar" data-act="gotoIdle">'+ICON.clock+
-      '<div class="txt"><b>'+T('idle_count',{n:idleItems.length})+'</b><br><span style="font-size:11.5px;opacity:.85">'+T('idle_desc')+'</span></div></div>';
-  }
-  h += '<div class="stat-capsules">'+
-    '<div class="scap total"><span class="sv">'+items.length+'</span><span class="sl">'+T('total')+(totalQty?' · '+totalQty:'' )+'</span></div>'+
-    '<div class="scap value"><span class="sv">¥'+(totalVal>=1000?Math.round(totalVal):totalVal.toFixed(0))+'</span><span class="sl">'+T('value')+'</span></div>'+
-    '<div class="scap soon"><span class="sv">'+soon.length+'</span><span class="sl">'+T('expiring')+'</span></div>'+
-    '<div class="scap exp"><span class="sv">'+expired.length+'</span><span class="sl">'+T('expired')+'</span></div>'+
-  '</div>';
-  const recents = recentActivities();
-  if(recents.length){
-    h += '<div class="sec">'+T('recent_moves')+'</div>';
-    recents.forEach(ev => {
-      const loc = locOf(ev.item.locId);
-      const iconHtml = ev.item.photo
-        ? '<div class="rm-ic"><img src="'+ev.item.photo+'" alt=""></div>'
-        : '<div class="rm-ic '+(ev.type==='take'?'take':'put')+'">'+(ev.type==='take'?ICON.take:ICON.put)+'</div>';
-      const actionText = ev.type === 'take' ? T('recent_take') : T('recent_put');
-      const locText = loc ? getLocFullPath(loc.id) : T('unloc');
-      h += '<div class="recent-move" data-act="openItem" data-id="'+ev.item.id+'">'+
-        iconHtml+
-        '<div class="rm-mid">'+
-          '<div class="rm-nm">'+esc(ev.item.name||'—')+'</div>'+
-          '<div class="rm-sub">'+esc(actionText)+' · '+esc(locText)+'</div>'+
-        '</div>'+
-        '<div class="rm-time">'+esc(relativeTime(ev.time))+'</div>'+
-      '</div>';
-    });
-  }
-  const urgent = expired.concat(soon).sort((a,b)=>String(effectiveExpDate(a)||'').localeCompare(String(effectiveExpDate(b)||''))).slice(0,5);
-  if(urgent.length) h += '<div class="sec">'+T('alert_soon')+'</div>' + urgent.map(itemRow).join('');
-  const low = items.filter(isLow).slice(0,3);
-  if(low.length) h += '<div class="sec">'+T('alert_low')+'</div>' + low.map(itemRow).join('');
-  if(warrantyAlert.length) h += '<div class="sec">'+T('warranty_alert')+'</div>' + warrantyAlert.slice(0,3).map(itemRow).join('');
-  const recent = items.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,12);
-  if(recent.length){
-    h += '<div class="sec">'+T('recent')+'</div>';
-    const groups = { today:[], yesterday:[], week:[], earlier:[] };
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterdayStart = todayStart - 86400000;
-    const weekStart = todayStart - 6 * 86400000;
-    recent.forEach(it=>{
-      const t = it.createdAt || 0;
-      if(t >= todayStart) groups.today.push(it);
-      else if(t >= yesterdayStart) groups.yesterday.push(it);
-      else if(t >= weekStart) groups.week.push(it);
-      else groups.earlier.push(it);
-    });
-      const labels = { today: T('today'), yesterday: T('yesterday'), week: T('this_week'), earlier: T('earlier') };
-    for(const k of ['today','yesterday','week','earlier']){
-      if(groups[k].length){
-        h += '<div class="time-group">'+
-          '<div class="tg-label"><span class="tg-dot"></span>'+labels[k]+'<span class="tg-count">'+groups[k].length+'</span></div>'+
-          groups[k].map(itemRow).join('')+
-        '</div>';
-      }
+    function itemRow(it) {
+        const st = expStatus(it);
+        const cat = catOf(it.catId), loc = locOf(it.locId);
+        const important = isImportantItem(it);
+        const usingOpened = isUsingOpenedExpiry(it);
+        const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
+        const isDepleted = (+it.qty || 0) <= 0; // ⭐
+
+        let badge = '';
+        if (isDepleted) {
+            badge = '<span class="tag idle" style="background:var(--border);color:var(--text-2)">已用完</span>';
+        }
+        else if (st === 'expired') badge = '<span class="tag danger">' + T('expired') + '</span>';
+        else if (st === 'soon') badge = '<span class="tag warn">' + esc(expText(it)) + '</span>';
+        else if (isLow(it)) badge = '<span class="tag danger">' + T('low') + '</span>';
+        else if (idle) badge = '<span class="tag idle">闲置</span>';
+
+        let openTag = '';
+        if (it.opened && !isDepleted) openTag = '<span class="tag open">' + T('opened_tag') + '</span>';
+        const parts = [];
+        if (cat) parts.push(esc(nm(cat)));
+        if (loc) parts.push(esc(nm(loc)));
+        if (!parts.length) parts.push(T('uncat'));
+        const qty = (+it.qty || 0) ? ('×' + (+it.qty) + (it.unit ? it.unit : '')) : '';
+        let daysEl = '';
+        const dd = daysUntil(effectiveExpDate(it));
+
+        if (!isDepleted && dd !== null) { // ⭐
+            let cls = 'days';
+            if (dd < 0) cls += ' over';
+            else if (dd <= (S.settings.warnDays || 7)) cls += ' soon';
+            else if (usingOpened) cls += ' open';
+            let txt = '';
+            if (dd < 0) txt = T('exp_over', { n: -dd });
+            else if (dd === 0) txt = T('exp_today');
+            else txt = '剩 ' + dd + ' 天';
+            daysEl = '<div class="' + cls + '">' + esc(txt) + '</div>';
+        } else if (idle && !isDepleted) {
+            daysEl = '<div class="days">' + idleDays(it) + ' 天未用</div>';
+        }
+        let iconHtml;
+        if (it.photo) { iconHtml = '<div class="ic"><img src="' + it.photo + '" alt=""></div>'; }
+        else { iconHtml = '<div class="ic">' + catIcon(cat ? cat.icon : 'c_other') + '</div>'; }
+        const selected = UI.organizeMode && UI.selectedIds.has(it.id);
+        const cls = 'item' + (important ? ' important' : '') + (selected ? ' selected' : '');
+        const cbx = UI.organizeMode ? '<div class="cbx">' + ICON.check + '</div>' : '';
+        const actAttr = UI.organizeMode ? 'data-act="toggleSelect"' : 'data-act="openItem"';
+        return '<div class="' + cls + '" ' + actAttr + ' data-id="' + it.id + '">' +
+            cbx + iconHtml +
+            '<div class="mid"><div class="nm">' + esc(it.name || '—') + '</div>' +
+            '<div class="sub">' + parts.join(' · ') + '</div></div>' +
+            '<div class="rt">' + (qty ? '<div class="qty">' + esc(qty) + '</div>' : '') + badge + openTag + daysEl + '</div></div>';
     }
-  }
-  const counts = {};
-  items.forEach(i=>{ const k=i.catId||'_'; counts[k]=(counts[k]||0)+1; });
-  const arr = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const max = arr.length ? arr[0][1] : 1;
-  h += '<div class="sec">'+T('by_cat')+'</div><div class="card">'+
-    arr.map(([k,n])=>{
-      const c = catOf(k);
-      const label = c ? nm(c) : T('uncat');
-      return '<div class="bar-row"><div class="hd"><span class="nm">'+esc(label)+'</span><span class="vl">'+n+'</span></div><div class="bar"><i style="width:'+Math.round(n/max*100)+'%"></i></div></div>';
-    }).join('') + '</div>';
-  return h;
-}
+    function compactItemRow(it) {
+        const st = expStatus(it);
+        const cat = catOf(it.catId);
+        const important = isImportantItem(it);
+        const qty = (+it.qty || 0);
+        const isDepleted = qty <= 0; // ⭐
+        const selected = UI.organizeMode && UI.selectedIds.has(it.id);
+        const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
+        let stateCls = '';
+
+        if (isDepleted) stateCls = ' st-idle'; // ⭐ 改颜色
+        else if (st === 'expired' || isLow(it)) stateCls = ' st-danger';
+        else if (st === 'soon') stateCls = ' st-warn';
+        else if (idle) stateCls = ' st-idle';
+
+        let iconHtml;
+        if (it.photo) { iconHtml = '<div class="ic"><img src="' + it.photo + '" alt=""></div>'; }
+        else { iconHtml = '<div class="ic">' + catIcon(cat ? cat.icon : 'c_other') + '</div>'; }
+        const actAttr = UI.organizeMode ? 'data-act="toggleSelect"' : 'data-act="openItem"';
+
+        return '<div class="item compact' + stateCls + (selected ? ' selected' : '') + (important ? ' important' : '') + '" ' + actAttr + ' data-id="' + it.id + '">' +
+            (stateCls ? '<span class="state-dot"></span>' : '') +
+            (qty > 0 ? '<span class="qty-badge">×' + qty + '</span>' : '') +
+            iconHtml +
+            '<div class="nm">' + esc(it.name || '—') + '</div>' +
+            '</div>';
+    }
+    function viewHome() {
+        const items = activeItems();
+        const totalQty = items.reduce((a, b) => a + (+b.qty || 0), 0);
+        const totalVal = items.reduce((a, b) => a + (+b.price || 0) * (+b.qty || 0), 0);
+        const expired = items.filter(i => expStatus(i) === 'expired');
+        const soon = items.filter(i => expStatus(i) === 'soon');
+        const idleItems = items.filter(i => isIdle(i) && expStatus(i) !== 'expired' && expStatus(i) !== 'soon' && (+i.qty || 0) > 0);
+        const depletedItems = items.filter(i => (+i.qty || 0) <= 0); // ⭐ 新增：已用完的物品
+
+        let h = '';
+        if (shouldRemindRecord()) {
+            h += '<div class="remind-bar" data-act="doRecordAction">' + ICON.bell +
+                '<div class="txt"><div style="font-weight:600">' + T('daily_remind_title') + '</div>' +
+                '<div style="font-size:12px;margin-top:2px;opacity:.85">' + T('daily_remind_desc') + '</div></div></div>';
+        }
+        if (expired.length > 0) {
+            h += '<div class="field-bar">' + ICON.leaf + '<div class="txt">' + T('field_clean_tip') + '</div></div>';
+        }
+        if (!items.length) { h += '<div class="empty">' + ICON.box + '<div>' + T('empty_items') + '</div></div>'; return h; }
+
+        h += weekReportCardHtml();
+
+        const importantItems = items.filter(isImportantItem);
+        const warrantyAlert = items.filter(i => { const w = warrantyStatus(i); return w && (w.kind === 'soon' || w.kind === 'expired'); });
+        if (importantItems.length > 0 || warrantyAlert.length > 0) {
+            let sub = T('focus_sub');
+            let cnt = importantItems.length;
+            if (warrantyAlert.length > 0) { sub += ' · ' + T('warranty_short') + ' ' + warrantyAlert.length; }
+            h += '<div class="focus-banner" data-act="gotoFocus">' +
+                '<div class="fbi">' + ICON.shield + '</div>' +
+                '<div class="fbtxt"><div class="fbttl">' + T('focus_title') + '</div><div class="fbsub">' + esc(sub) + '</div></div>' +
+                '<div class="fbnum">' + cnt + '</div>' +
+                '</div>';
+        }
+
+        // ⭐ 显示已用完提醒
+        if (depletedItems.length > 0) {
+            h += '<div class="idle-bar" data-act="gotoDepleted" style="background:var(--card-2);border:1px solid var(--border)">' + ICON.refresh +
+                '<div class="txt"><b style="color:var(--text)">有 ' + depletedItems.length + ' 件物品已用完</b><br><span style="font-size:11.5px;opacity:.85">点击查看并一键补货</span></div></div>';
+        }
+
+        if (idleItems.length > 0) {
+            h += '<div class="idle-bar" data-act="gotoIdle">' + ICON.clock +
+                '<div class="txt"><b>' + T('idle_count', { n: idleItems.length }) + '</b><br><span style="font-size:11.5px;opacity:.85">' + T('idle_desc') + '</span></div></div>';
+        }
+        h += '<div class="stat-capsules">' +
+            '<div class="scap total"><span class="sv">' + items.length + '</span><span class="sl">' + T('total') + (totalQty ? ' · ' + totalQty : '') + '</span></div>' +
+            '<div class="scap value"><span class="sv">¥' + (totalVal >= 1000 ? Math.round(totalVal) : totalVal.toFixed(0)) + '</span><span class="sl">' + T('value') + '</span></div>' +
+            '<div class="scap soon"><span class="sv">' + soon.length + '</span><span class="sl">' + T('expiring') + '</span></div>' +
+            '<div class="scap exp"><span class="sv">' + expired.length + '</span><span class="sl">' + T('expired') + '</span></div>' +
+            '</div>';
+
+        const recents = recentActivities();
+        if (recents.length) {
+            h += '<div class="sec">' + T('recent_moves') + '</div>';
+            recents.forEach(ev => {
+                const loc = locOf(ev.item.locId);
+                const iconHtml = ev.item.photo
+                    ? '<div class="rm-ic"><img src="' + ev.item.photo + '" alt=""></div>'
+                    : '<div class="rm-ic ' + (ev.type === 'take' ? 'take' : 'put') + '">' + (ev.type === 'take' ? ICON.take : ICON.put) + '</div>';
+                const actionText = ev.type === 'take' ? T('recent_take') : T('recent_put');
+                const locText = loc ? getLocFullPath(loc.id) : T('unloc');
+                h += '<div class="recent-move" data-act="openItem" data-id="' + ev.item.id + '">' +
+                    iconHtml +
+                    '<div class="rm-mid">' +
+                    '<div class="rm-nm">' + esc(ev.item.name || '—') + '</div>' +
+                    '<div class="rm-sub">' + esc(actionText) + ' · ' + esc(locText) + '</div>' +
+                    '</div>' +
+                    '<div class="rm-time">' + esc(relativeTime(ev.time)) + '</div>' +
+                    '</div>';
+            });
+        }
+
+        const urgent = expired.concat(soon).sort((a, b) => String(effectiveExpDate(a) || '').localeCompare(String(effectiveExpDate(b) || ''))).slice(0, 5);
+        if (urgent.length) h += '<div class="sec">' + T('alert_soon') + '</div>' + urgent.map(itemRow).join('');
+        const low = items.filter(isLow).slice(0, 3);
+        if (low.length) h += '<div class="sec">' + T('alert_low') + '</div>' + low.map(itemRow).join('');
+        if (warrantyAlert.length) h += '<div class="sec">' + T('warranty_alert') + '</div>' + warrantyAlert.slice(0, 3).map(itemRow).join('');
+
+        const recent = items.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 12);
+        if (recent.length) {
+            h += '<div class="sec">' + T('recent') + '</div>';
+            const groups = { today: [], yesterday: [], week: [], earlier: [] };
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const yesterdayStart = todayStart - 86400000;
+            const weekStart = todayStart - 6 * 86400000;
+            recent.forEach(it => {
+                const t = it.createdAt || 0;
+                if (t >= todayStart) groups.today.push(it);
+                else if (t >= yesterdayStart) groups.yesterday.push(it);
+                else if (t >= weekStart) groups.week.push(it);
+                else groups.earlier.push(it);
+            });
+            const labels = { today: T('today'), yesterday: T('yesterday'), week: T('this_week'), earlier: T('earlier') };
+            for (const k of ['today', 'yesterday', 'week', 'earlier']) {
+                if (groups[k].length) {
+                    h += '<div class="time-group">' +
+                        '<div class="tg-label"><span class="tg-dot"></span>' + labels[k] + '<span class="tg-count">' + groups[k].length + '</span></div>' +
+                        groups[k].map(itemRow).join('') +
+                        '</div>';
+                }
+            }
+        }
+        const counts = {};
+        items.forEach(i => { const k = i.catId || '_'; counts[k] = (counts[k] || 0) + 1; });
+        const arr = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+        const max = arr.length ? arr[0][1] : 1;
+        h += '<div class="sec">' + T('by_cat') + '</div><div class="card">' +
+            arr.map(([k, n]) => {
+                const c = catOf(k);
+                const label = c ? nm(c) : T('uncat');
+                return '<div class="bar-row"><div class="hd"><span class="nm">' + esc(label) + '</span><span class="vl">' + n + '</span></div><div class="bar"><i style="width:' + Math.round(n / max * 100) + '%"></i></div></div>';
+            }).join('') + '</div>';
+        return h;
+    }
+  
 function weekReportCardHtml(){
   const opts = weekOptions();
   const selIdx = Math.min(UI.reportWeek || 0, opts.length - 1);
@@ -2390,85 +2424,113 @@ function weekReportCardHtml(){
   h += '</div>';
   return h;
 }
-function viewAlerts(){
-  const items = S.items;
-  if(!items.length){ return '<div class="empty">'+ICON.bell+'<div>'+T('empty_items')+'</div></div>'; }
-  const expired = items.filter(i=>expStatus(i)==='expired').sort((a,b)=>String(effectiveExpDate(a)||'').localeCompare(String(effectiveExpDate(b)||'')));
-  const soon = items.filter(i=>expStatus(i)==='soon').sort((a,b)=>String(effectiveExpDate(a)||'').localeCompare(String(effectiveExpDate(b)||'')));
-  const low = items.filter(i=>isLow(i) && expStatus(i)!=='expired' && expStatus(i)!=='soon');
-  const warrantyItems = items.filter(i=>{
-    const w = warrantyStatus(i);
-    return w && (w.kind==='soon' || w.kind==='expired') && expStatus(i)!=='expired' && expStatus(i)!=='soon';
-  });
-  const noexp = items.filter(i=>!effectiveExpDate(i) && !isLow(i));
-  if(!expired.length && !soon.length && !low.length && !warrantyItems.length){ return '<div class="empty">'+ICON.check+'<div>'+T('all_good')+'</div></div>'; }
-  let h = '';
-  if(expired.length) h += '<div class="field-bar">'+ICON.leaf+'<div class="txt">'+T('field_clean_tip')+'</div></div>';
-  h += '<div class="stats">'+
-    '<div class="stat '+(expired.length?'danger':'')+'"><div class="n">'+expired.length+'</div><div class="l">'+T('stat_expired')+'</div></div>'+
-    '<div class="stat '+(soon.length?'warn':'')+'"><div class="n">'+soon.length+'</div><div class="l">'+T('stat_soon')+'</div></div>'+
-    '<div class="stat '+(low.length?'danger':'')+'"><div class="n">'+low.length+'</div><div class="l">'+T('low')+'</div></div>'+
-    '<div class="stat"><div class="n">'+noexp.length+'</div><div class="l">'+T('stat_noexp')+'</div></div>'+
-  '</div>';
-  if(expired.length){ h += '<div class="alert-sec" style="color:var(--danger)"><span class="dot" style="background:var(--danger)"></span>'+T('expired')+'<span class="cnt">· '+expired.length+'</span></div>' + expired.map(itemRow).join(''); }
-  if(soon.length){ h += '<div class="alert-sec" style="color:var(--warn)"><span class="dot" style="background:var(--warn)"></span>'+T('expiring')+'<span class="cnt">· '+soon.length+'</span></div>' + soon.map(itemRow).join(''); }
-  if(warrantyItems.length){ h += '<div class="alert-sec" style="color:#3A5FCD"><span class="dot" style="background:#3A5FCD"></span>'+T('warranty_alert')+'<span class="cnt">· '+warrantyItems.length+'</span></div>' + warrantyItems.map(itemRow).join(''); }
-  if(low.length){ h += '<div class="alert-sec" style="color:var(--danger)"><span class="dot" style="background:var(--danger)"></span>'+T('low')+'<span class="cnt">· '+low.length+'</span></div>' + low.map(itemRow).join(''); }
-  if(noexp.length){
-    h += '<div class="alert-sec" style="color:var(--text-3)"><span class="dot" style="background:var(--text-3)"></span>'+T('stat_noexp')+'<span class="cnt">· '+noexp.length+'</span></div>';
-    h += noexp.slice(0,8).map(itemRow).join('');
-    if(noexp.length > 8) h += '<div class="small muted" style="text-align:center;padding:14px">还有 '+(noexp.length-8)+' 件…</div>';
-  }
-  return h;
-}
-function viewItems(){
-  const tree = catTree();
-  let h = '';
-  h += '<div class="search">'+ICON.search+'<input id="q" placeholder="'+T('search_ph')+'" value="'+esc(UI.q)+'" autocomplete="off"></div>';
-  if(!UI.q){
-    h += '<div class="small muted" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.5">'+T('fuzzy_hint')+'</div>';
-  }
-  const allSt = ['','expired','soon','low','idle'].map(k=>{
-    const lbl = k==='' ? T('st_all') : T('st_'+k);
-    return '<div class="chip'+(UI.fst===k?' on':'')+'" data-act="setFilter" data-fst="'+k+'">'+lbl+'</div>';
-  }).join('');
-  const freshChip = '<div class="chip'+(UI.freshOnly?' on':'')+'" data-act="toggleFreshFilter" style="'+(UI.freshOnly?'background:var(--fresh);color:#fff;border-color:var(--fresh)':'color:var(--fresh);border:1px solid var(--fresh)')+'">'+ICON.leaf.replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;display:inline-block;margin-right:3px"')+'食材零食</div>';
-  const focusChip = '<div class="chip'+(UI.focusOnly?' on':'')+'" data-act="toggleFocusFilter" style="'+(UI.focusOnly?'background:var(--primary);color:#fff;border-color:var(--primary)':'color:var(--primary);border:1px solid var(--primary)')+'">'+ICON.shield.replace('<svg','<svg style="width:14px;height:14px;vertical-align:-2px;display:inline-block;margin-right:3px"')+'重点关注</div>';
-  h += '<div class="chips">'+focusChip+freshChip+allSt+'</div>';
-  h += '<div class="chips cat-chips">'+
-    '<div class="chip'+(UI.fcat===''?' on':'')+'" data-act="setCatFilter" data-c="">'+T('all')+'</div>'+
-    tree.map(c=>'<div class="chip'+(UI.fcat===c.id?' on':'')+'" data-act="setCatFilter" data-c="'+c.id+'">'+esc(nm(c))+'</div>').join('') +
-  '</div>';
-  h += '<div class="row" style="margin-bottom:10px">'+
-    '<div class="small muted" id="cnt"></div>'+
-    '<select id="sortSel" style="border:none;background:transparent;color:var(--text-2);font-size:13px;font-family:inherit;text-align:right;outline:none">'+
-      '<option value="recent"'+(UI.sort==='recent'?' selected':'')+'>'+T('sort_recent')+'</option>'+
-      '<option value="name"'+(UI.sort==='name'?' selected':'')+'>'+T('sort_name')+'</option>'+
-      '<option value="exp"'+(UI.sort==='exp'?' selected':'')+'>'+T('sort_exp')+'</option>'+
-      '<option value="price"'+(UI.sort==='price'?' selected':'')+'>'+T('sort_price')+'</option>'+
-    '</select></div>';
-  h += '<div id="list"></div>';
-  return h;
-}
-function filteredItems(){
-  const q = UI.q.trim();
-  let arr = activeItems().filter(it=>{
-    if(q){
-      const matched = fuzzySearch([it], q);
-      if(!matched.length) return false;
+    function viewAlerts() {
+        const items = activeItems(); // 修复：排除回收站物品
+        if (!items.length) { return '<div class="empty">' + ICON.bell + '<div>' + T('empty_items') + '</div></div>'; }
+
+        const expired = items.filter(i => expStatus(i) === 'expired').sort((a, b) => String(effectiveExpDate(a) || '').localeCompare(String(effectiveExpDate(b) || '')));
+        const soon = items.filter(i => expStatus(i) === 'soon').sort((a, b) => String(effectiveExpDate(a) || '').localeCompare(String(effectiveExpDate(b) || '')));
+        const depleted = items.filter(i => (+i.qty || 0) <= 0); // ⭐ 新增：已用完列表
+        const low = items.filter(i => isLow(i) && expStatus(i) !== 'expired' && expStatus(i) !== 'soon' && (+i.qty || 0) > 0);
+        const warrantyItems = items.filter(i => {
+            const w = warrantyStatus(i);
+            return w && (w.kind === 'soon' || w.kind === 'expired') && expStatus(i) !== 'expired' && expStatus(i) !== 'soon';
+        });
+        const noexp = items.filter(i => !effectiveExpDate(i) && !isLow(i) && (+i.qty || 0) > 0);
+
+        if (!expired.length && !soon.length && !low.length && !warrantyItems.length && !depleted.length) {
+            return '<div class="empty">' + ICON.check + '<div>' + T('all_good') + '</div></div>';
+        }
+
+        let h = '';
+        if (expired.length) h += '<div class="field-bar">' + ICON.leaf + '<div class="txt">' + T('field_clean_tip') + '</div></div>';
+
+        // ⭐ 更新了统计面板，加入了“已用完”的格子
+        h += '<div class="stats">' +
+            '<div class="stat ' + (expired.length ? 'danger' : '') + '"><div class="n">' + expired.length + '</div><div class="l">' + T('stat_expired') + '</div></div>' +
+            '<div class="stat ' + (soon.length ? 'warn' : '') + '"><div class="n">' + soon.length + '</div><div class="l">' + T('stat_soon') + '</div></div>' +
+            '<div class="stat ' + (depleted.length ? 'danger' : '') + '" style="' + (depleted.length ? 'background:var(--danger-l);border:1px solid rgba(220,76,62,.2)' : '') + '"><div class="n" style="' + (depleted.length ? 'color:var(--danger)' : '') + '">' + depleted.length + '</div><div class="l">已用完</div></div>' +
+            '<div class="stat ' + (low.length ? 'danger' : '') + '"><div class="n">' + low.length + '</div><div class="l">' + T('low') + '</div></div>' +
+            '</div>';
+
+        if (expired.length) { h += '<div class="alert-sec" style="color:var(--danger)"><span class="dot" style="background:var(--danger)"></span>' + T('expired') + '<span class="cnt">· ' + expired.length + '</span></div>' + expired.map(itemRow).join(''); }
+        if (soon.length) { h += '<div class="alert-sec" style="color:var(--warn)"><span class="dot" style="background:var(--warn)"></span>' + T('expiring') + '<span class="cnt">· ' + soon.length + '</span></div>' + soon.map(itemRow).join(''); }
+
+        // ⭐ 新增：已用完的列表区块
+        if (depleted.length) {
+            h += '<div class="alert-sec" style="color:var(--text-2)"><span class="dot" style="background:var(--text-2)"></span>已用完 · 待补货<span class="cnt">· ' + depleted.length + '</span></div>' + depleted.map(itemRow).join('');
+        }
+
+        if (warrantyItems.length) { h += '<div class="alert-sec" style="color:#3A5FCD"><span class="dot" style="background:#3A5FCD"></span>' + T('warranty_alert') + '<span class="cnt">· ' + warrantyItems.length + '</span></div>' + warrantyItems.map(itemRow).join(''); }
+        if (low.length) { h += '<div class="alert-sec" style="color:var(--danger)"><span class="dot" style="background:var(--danger)"></span>' + T('low') + '<span class="cnt">· ' + low.length + '</span></div>' + low.map(itemRow).join(''); }
+        if (noexp.length) {
+            h += '<div class="alert-sec" style="color:var(--text-3)"><span class="dot" style="background:var(--text-3)"></span>' + T('stat_noexp') + '<span class="cnt">· ' + noexp.length + '</span></div>';
+            h += noexp.slice(0, 8).map(itemRow).join('');
+            if (noexp.length > 8) h += '<div class="small muted" style="text-align:center;padding:14px">还有 ' + (noexp.length - 8) + ' 件…</div>';
+        }
+        return h;
     }
-    if(UI.fcat){ if(it.catId !== UI.fcat){ const c = catOf(it.catId); if(!c || c.parentId !== UI.fcat) return false; } }
-    if(UI.fst){ const st = expStatus(it); if(UI.fst==='low'){ if(!isLow(it)) return false; } else if(UI.fst==='idle'){ if(!isIdle(it)) return false; } else if(st !== UI.fst) return false; }
-    if(UI.freshOnly && !isFreshItem(it)) return false;
-    if(UI.focusOnly && !isImportantItem(it)) return false;
-    return true;
-  });
-  if(UI.sort==='name')       arr.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'zh'));
-  else if(UI.sort==='exp')   arr.sort((a,b)=>String(effectiveExpDate(a)||'9999').localeCompare(String(effectiveExpDate(b)||'9999')));
-  else if(UI.sort==='price') arr.sort((a,b)=>(+b.price||0)-(+a.price||0));
-  else                       arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  return arr;
-}
+    function viewItems() {
+        const tree = catTree();
+        let h = '';
+        h += '<div class="search">' + ICON.search + '<input id="q" placeholder="' + T('search_ph') + '" value="' + esc(UI.q) + '" autocomplete="off"></div>';
+        if (!UI.q) {
+            h += '<div class="small muted" style="margin:-6px 0 10px;font-size:11.5px;line-height:1.5">' + T('fuzzy_hint') + '</div>';
+        }
+
+        // ⭐ 增加了 depleted
+        const allSt = ['', 'expired', 'soon', 'low', 'depleted', 'idle'].map(k => {
+            let lbl = '';
+            if (k === '') lbl = T('st_all');
+            else if (k === 'depleted') lbl = '已用完';
+            else lbl = T('st_' + k);
+            return '<div class="chip' + (UI.fst === k ? ' on' : '') + '" data-act="setFilter" data-fst="' + k + '">' + lbl + '</div>';
+        }).join('');
+
+        const freshChip = '<div class="chip' + (UI.freshOnly ? ' on' : '') + '" data-act="toggleFreshFilter" style="' + (UI.freshOnly ? 'background:var(--fresh);color:#fff;border-color:var(--fresh)' : 'color:var(--fresh);border:1px solid var(--fresh)') + '">' + ICON.leaf.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px;display:inline-block;margin-right:3px"') + '食材零食</div>';
+        const focusChip = '<div class="chip' + (UI.focusOnly ? ' on' : '') + '" data-act="toggleFocusFilter" style="' + (UI.focusOnly ? 'background:var(--primary);color:#fff;border-color:var(--primary)' : 'color:var(--primary);border:1px solid var(--primary)') + '">' + ICON.shield.replace('<svg', '<svg style="width:14px;height:14px;vertical-align:-2px;display:inline-block;margin-right:3px"') + '重点关注</div>';
+
+        h += '<div class="chips">' + focusChip + freshChip + allSt + '</div>';
+        h += '<div class="chips cat-chips">' +
+            '<div class="chip' + (UI.fcat === '' ? ' on' : '') + '" data-act="setCatFilter" data-c="">' + T('all') + '</div>' +
+            tree.map(c => '<div class="chip' + (UI.fcat === c.id ? ' on' : '') + '" data-act="setCatFilter" data-c="' + c.id + '">' + esc(nm(c)) + '</div>').join('') +
+            '</div>';
+        h += '<div class="row" style="margin-bottom:10px">' +
+            '<div class="small muted" id="cnt"></div>' +
+            '<select id="sortSel" style="border:none;background:transparent;color:var(--text-2);font-size:13px;font-family:inherit;text-align:right;outline:none">' +
+            '<option value="recent"' + (UI.sort === 'recent' ? ' selected' : '') + '>' + T('sort_recent') + '</option>' +
+            '<option value="name"' + (UI.sort === 'name' ? ' selected' : '') + '>' + T('sort_name') + '</option>' +
+            '<option value="exp"' + (UI.sort === 'exp' ? ' selected' : '') + '>' + T('sort_exp') + '</option>' +
+            '<option value="price"' + (UI.sort === 'price' ? ' selected' : '') + '>' + T('sort_price') + '</option>' +
+            '</select></div>';
+        h += '<div id="list"></div>';
+        return h;
+    }
+    function filteredItems() {
+        const q = UI.q.trim();
+        let arr = activeItems().filter(it => {
+            if (q) {
+                const matched = fuzzySearch([it], q);
+                if (!matched.length) return false;
+            }
+            if (UI.fcat) { if (it.catId !== UI.fcat) { const c = catOf(it.catId); if (!c || c.parentId !== UI.fcat) return false; } }
+            if (UI.fst) {
+                const st = expStatus(it);
+                if (UI.fst === 'low') { if (!isLow(it)) return false; }
+                else if (UI.fst === 'idle') { if (!isIdle(it)) return false; }
+                else if (UI.fst === 'depleted') { if ((+it.qty || 0) > 0) return false; } // ⭐ 处理已用完过滤
+                else if (st !== UI.fst) return false;
+            }
+            if (UI.freshOnly && !isFreshItem(it)) return false;
+            if (UI.focusOnly && !isImportantItem(it)) return false;
+            return true;
+        });
+        if (UI.sort === 'name') arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh'));
+        else if (UI.sort === 'exp') arr.sort((a, b) => String(effectiveExpDate(a) || '9999').localeCompare(String(effectiveExpDate(b) || '9999')));
+        else if (UI.sort === 'price') arr.sort((a, b) => (+b.price || 0) - (+a.price || 0));
+        else arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        return arr;
+    }
 function renderList(){
   const el = $('#list'); if(!el) return;
   const all = filteredItems();
@@ -2503,65 +2565,67 @@ function viewZones(){
   h += '<div id="zonesList">' + renderZonesList() + '</div>';
   return h;
 }
-function renderZonesList(){
-  const tree = locTree();
-  let h = '';
-  const q = UI.zoneSearch.trim();
-  const noLoc = activeItems().filter(it=>!it.locId);
-  if(noLoc.length && !q){
-    const open = UI.zoneExpanded['__none__'] ? ' open' : '';
-    h += '<div class="zone-card'+open+'">'+
-      '<div class="zone-hd" data-act="toggleZone" data-id="__none__">'+
-        '<div class="zic">'+ICON.loc+'</div>'+
-        '<div class="znm">'+T('no_loc_items')+'</div>'+
-        '<div class="zcnt">'+noLoc.length+'</div>'+
-        '<svg class="zarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'+
-      '</div>'+
-      '<div class="zone-body">'+
-        '<div class="room-empty" style="padding:0 0 8px 0">'+T('no_loc_hint')+'</div>'+
-        '<div class="room-blk" data-drop-loc="">'+
-          '<div class="room-items-grid">'+noLoc.map(compactItemRow).join('')+'</div>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }
-  tree.forEach(top=>{
-    const topItems = activeItems().filter(it=>{
-      const l = it.locId ? locOf(it.locId) : null;
-      if(!l) return false;
-      if(l.id === top.id) return true;
-      return l.parentId === top.id;
-    });
-    const filterItems = q ? topItems.filter(it=>fuzzySearch([it], q).length) : topItems;
-    if(q && filterItems.length === 0) return;
-    const open = UI.zoneExpanded[top.id] ? ' open' : '';
-    h += '<div class="zone-card'+open+'">'+
-      '<div class="zone-hd" data-act="toggleZone" data-id="'+top.id+'">'+
-        '<div class="zic">'+ICON.house+'</div>'+
-        '<div class="znm">'+esc(nm(top))+'</div>'+
-        '<div class="zcnt">'+(q ? filterItems.length+' / '+topItems.length : topItems.length)+'</div>'+
-        '<svg class="zarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'+
-      '</div>'+
-      '<div class="zone-body">';
-      top.children.forEach(room => {
-          // ⭐ 兼容逻辑：如果物品只选了一级（top.id），并且当前遍历到的是「其他」，就把它归入“其他”里显示
-          const roomItems = activeItems().filter(it => {
-              if (it.locId === room.id) return true;
-              if (it.locId === top.id && room.isOther) return true;
-              return false;
-          });
-      const roomFilter = q ? roomItems.filter(it=>fuzzySearch([it], q).length) : roomItems;
-      if(q && roomFilter.length === 0) return;
-      h += '<div class="room-blk" data-drop-loc="'+room.id+'">'+
-        '<div class="room-hd">'+ICON.loc+'<span>'+esc(nm(room))+'</span><span class="rcount">'+(q ? roomFilter.length+' / '+roomItems.length : roomItems.length)+'</span></div>';
-      if(roomFilter.length === 0){ h += '<div class="room-empty">'+T('room_empty')+'</div>'; }
-      else{ h += '<div class="room-items-grid">'+roomFilter.map(compactItemRow).join('')+'</div>'; }
-      h += '</div>';
-    });
-    h += '</div></div>';
-  });
-  return h;
-}
+    function renderZonesList() {
+        const tree = locTree();
+        let h = '';
+        const q = UI.zoneSearch.trim();
+        // ⭐ 未归位过滤掉数量为 0 的
+        const noLoc = activeItems().filter(it => !it.locId && (+it.qty || 0) > 0);
+
+        if (noLoc.length && !q) {
+            const open = UI.zoneExpanded['__none__'] ? ' open' : '';
+            h += '<div class="zone-card' + open + '">' +
+                '<div class="zone-hd" data-act="toggleZone" data-id="__none__">' +
+                '<div class="zic">' + ICON.loc + '</div>' +
+                '<div class="znm">' + T('no_loc_items') + '</div>' +
+                '<div class="zcnt">' + noLoc.length + '</div>' +
+                '<svg class="zarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
+                '</div>' +
+                '<div class="zone-body">' +
+                '<div class="room-empty" style="padding:0 0 8px 0">' + T('no_loc_hint') + '</div>' +
+                '<div class="room-blk" data-drop-loc="">' +
+                '<div class="room-items-grid">' + noLoc.map(compactItemRow).join('') + '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+        }
+        tree.forEach(top => {
+            const topItems = activeItems().filter(it => {
+                const l = it.locId ? locOf(it.locId) : null;
+                if (!l) return false;
+                if (l.id === top.id) return true;
+                return l.parentId === top.id;
+            });
+            const filterItems = q ? topItems.filter(it => fuzzySearch([it], q).length) : topItems;
+            if (q && filterItems.length === 0) return;
+            const open = UI.zoneExpanded[top.id] ? ' open' : '';
+            h += '<div class="zone-card' + open + '">' +
+                '<div class="zone-hd" data-act="toggleZone" data-id="' + top.id + '">' +
+                '<div class="zic">' + ICON.house + '</div>' +
+                '<div class="znm">' + esc(nm(top)) + '</div>' +
+                '<div class="zcnt">' + (q ? filterItems.length + ' / ' + topItems.length : topItems.length) + '</div>' +
+                '<svg class="zarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
+                '</div>' +
+                '<div class="zone-body">';
+            top.children.forEach(room => {
+                // ⭐ 兼容逻辑：如果物品只选了一级（top.id），并且当前遍历到的是「其他」，就把它归入“其他”里显示
+                const roomItems = activeItems().filter(it => {
+                    if (it.locId === room.id) return true;
+                    if (it.locId === top.id && room.isOther) return true;
+                    return false;
+                });
+                const roomFilter = q ? roomItems.filter(it => fuzzySearch([it], q).length) : roomItems;
+                if (q && roomFilter.length === 0) return;
+                h += '<div class="room-blk" data-drop-loc="' + room.id + '">' +
+                    '<div class="room-hd">' + ICON.loc + '<span>' + esc(nm(room)) + '</span><span class="rcount">' + (q ? roomFilter.length + ' / ' + roomItems.length : roomItems.length) + '</span></div>';
+                if (roomFilter.length === 0) { h += '<div class="room-empty">' + T('room_empty') + '</div>'; }
+                else { h += '<div class="room-items-grid">' + roomFilter.map(compactItemRow).join('') + '</div>'; }
+                h += '</div>';
+            });
+            h += '</div></div>';
+        });
+        return h;
+    }
 function bindZones(){
   const inp = document.getElementById('lookupInput');
   const res = document.getElementById('lookupResult');
@@ -3085,91 +3149,138 @@ function itemFormSheet(item, prefill){
     '</div>';
   openSheet(html);
   window.__currentPhoto = curPhoto;
-}
-function itemDetailSheet(id){
-  const it = S.items.find(i=>i.id===id);
-  if(!it) return;
-  const cat = catOf(it.catId), loc = locOf(it.locId);
-  const st = expStatus(it);
-  const total = (+it.price||0)*(+it.qty||0);
-  const usingOpened = isUsingOpenedExpiry(it);
-  const effExp = effectiveExpDate(it);
-  const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
-  let rows = '';
-  const row = (k,v) => v ? '<div class="detail-row"><span class="k">'+k+'</span><span class="v">'+esc(v)+'</span></div>' : '';
-  if(it.photo){
-    rows += '<div style="text-align:center;margin-bottom:14px"><img src="'+it.photo+'" alt="" style="max-width:100%;border-radius:12px;max-height:180px;object-fit:contain"></div>';
-  }
-  rows += row(T('cat'), cat?nm(cat):T('uncat'));
-  rows += row(T('loc'), loc?getLocFullPath(loc.id):T('unloc'));
-  rows += row(T('qty'), (it.qty||0)+(it.unit?it.unit:''));
-  if(it.price) rows += row(T('price'), '¥'+(+it.price).toFixed(2));
-  if(total) rows += row(T('value'), '¥'+total.toFixed(2));
-  if(it.barcode) rows += row(T('barcode'), it.barcode);
-  if(it.purchaseDate) rows += row(T('purchase'), it.purchaseDate);
-  if(it.prodDate) rows += row(T('prod'), it.prodDate);
-  if(it.shelfLife) rows += row(T('shelf'), it.shelfLife+' 天');
-  if(it.expDate) rows += row(T('exp'), it.expDate+'（包装上）');
-  if(it.opened){
-    rows += row(T('opened_detail'), '✓' + (it.openedDate ? ' ' + it.openedDate : ''));
-    if(it.afterOpenShelf) rows += row(T('afterOpenShelf'), it.afterOpenShelf + ' 天');
-      if (usingOpened && effExp) { rows += row(T('eff_exp'), effExp); }
-  } else if(it.expDate){
-      rows += row(T('eff_exp'), effExp);
-  }
-  if(it.warrantyUntil){
-    const w = warrantyStatus(it);
-    let wtxt = it.warrantyUntil;
-    if(w){
-      if(w.kind==='expired') wtxt += '（已过保修）';
-      else wtxt += '（剩 '+w.days+' 天）';
     }
-    rows += row(T('warranty'), wtxt);
-  }
-  if(it.minQty) rows += row(T('min_qty'), it.minQty);
-    if (idle) rows += row(T('idle'), T('idle_days', { n: idleDays(it) }));
-  if(it.note) rows += row(T('note'), it.note);
-  if(it.createdAt){
-    const cd = new Date(it.createdAt);
-    const cstr = cd.getFullYear()+'-'+String(cd.getMonth()+1).padStart(2,'0')+'-'+String(cd.getDate()).padStart(2,'0')+' '+String(cd.getHours()).padStart(2,'0')+':'+String(cd.getMinutes()).padStart(2,'0');
-      rows += row(T('added_time'), cstr + '（' + relativeTime(it.createdAt) + '）');
-  }
-  if(it.lastUsedAt && it.lastUsedAt !== it.createdAt){
-    const ld = new Date(it.lastUsedAt);
-    const lstr = ld.getFullYear()+'-'+String(ld.getMonth()+1).padStart(2,'0')+'-'+String(ld.getDate()).padStart(2,'0')+' '+String(ld.getHours()).padStart(2,'0')+':'+String(ld.getMinutes()).padStart(2,'0');
-      rows += row(T('last_used_time'), lstr + '（' + relativeTime(it.lastUsedAt) + '）');
-  }
-  let badge = '';
-  if(st==='expired') badge = '<span class="tag danger">'+T('expired')+'</span>';
-  else if(st==='soon') badge = '<span class="tag warn">'+esc(expText(it))+'</span>';
-  else if(idle) badge = '<span class="tag idle">闲置 '+idleDays(it)+' 天</span>';
-  let h = '<div class="sheet-hd"><h3>'+esc(it.name)+'</h3></div>';
-  if(badge) h += '<div style="margin-bottom:12px">'+badge+'</div>';
-  if(st==='expired'){
-    h += '<div class="field-bar" style="margin-bottom:12px">'+ICON.leaf+'<div class="txt">'+T('field_clean_tip')+'</div></div>';
-  }
-  const w = warrantyStatus(it);
-  if(w && (w.kind==='soon' || w.kind==='expired')){
-    const wtext = w.kind==='expired' ? T('warranty_expired_days',{n:-w.days}) : T('warranty_days',{n:w.days});
-    h += '<div class="warranty-bar">'+ICON.warranty+'<div class="txt">'+esc(wtext)+'</div></div>';
-  }
-  h += '<div class="card" style="margin-bottom:0">'+rows+'</div>';
-  if(st === 'expired'){
-    const tip = getReuseTip(it.name);
-    if(tip){
-      h += '<div class="reuse-tip"><b>'+T('reuse_title')+'</b><br>'+esc(tip.tip)+'</div>';
-    } else {
-      h += '<div class="reuse-tip"><b>'+T('reuse_title')+'</b><br>'+T('reuse_none')+'</div>';
+    function takeItemSheet(itemId) {
+        const it = S.items.find(i => i.id === itemId);
+        if (!it) return;
+        if ((+it.qty || 0) <= 0) {
+            toast('该物品已用完，请先去补货', 2500);
+            return;
+        }
+
+        const curLocText = it.locId ? getLocFullPath(it.locId) : T('unloc');
+        let h = '<div class="sheet-hd"><h3>取出使用</h3></div>';
+        h += '<div style="text-align:center;margin-bottom:20px">' +
+            '<div style="font-size:17px;font-weight:600">' + esc(it.name) + '</div>' +
+            '<div style="font-size:12px;color:var(--text-2);margin-top:4px">当前库存: ' + (it.qty || 1) + (it.unit || '') + ' · 位置: ' + esc(curLocText) + '</div>' +
+            '</div>';
+        h += '<div class="field"><label style="text-align:center;font-size:13px;color:var(--text-2)">取出数量</label>' +
+            '<div class="rebuy-qty-wrap">' +
+            '<button class="rebuy-qty-btn" data-act="takeQtyMinus">−</button>' +
+            '<input id="takeQtyInput" class="rebuy-qty-num" type="number" inputmode="numeric" min="1" value="1">' +
+            '<button class="rebuy-qty-btn" data-act="takeQtyPlus">+</button>' +
+            '</div></div>';
+        h += '<div style="display:flex;flex-direction:column;gap:10px;margin-top:24px">';
+        h += '<button class="btn primary block" data-act="doTake" data-id="' + it.id + '" data-type="consume" style="padding:14px;text-align:left">' +
+            '<div style="font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px">' + ICON.trash + ' 消耗出库</div>' +
+            '<div style="font-size:11px;opacity:0.85;margin-top:2px">适合消耗品。扣除对应数量，位置变为未归位。</div>' +
+            '</button>';
+        h += '<button class="btn block" data-act="doTake" data-id="' + it.id + '" data-type="borrow" style="padding:14px;text-align:left;border:1px solid var(--border)">' +
+            '<div style="font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px">' + ICON.take + ' 拿出去用</div>' +
+            '<div style="font-size:11px;color:var(--text-3);margin-top:2px">适合借出。数量不变，位置变为未归位。</div>' +
+            '</button>';
+        h += '<button class="btn block" data-act="doTake" data-id="' + it.id + '" data-type="log" style="padding:14px;text-align:left;border:1px solid var(--border)">' +
+            '<div style="font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px">' + ICON.edit + ' 仅记录使用</div>' +
+            '<div style="font-size:11px;color:var(--text-3);margin-top:2px">数量与位置都不变，仅在首页动态中留下记录。</div>' +
+            '</button>';
+        h += '</div>';
+        openSheet(h);
     }
-  }
-  h += '<div class="sheet-foot" style="flex-wrap:wrap">'+
-    '<button class="btn" data-act="takeItem" data-id="'+it.id+'" style="flex:1 1 48%">'+ICON.take+' '+T('take_action')+'</button>'+
-    '<button class="btn rebuy" data-act="rebuyItem" data-id="'+it.id+'" style="flex:1 1 48%">'+ICON.refresh+' '+T('rebuy')+'</button>'+
-    '<button class="btn" data-act="editItem" data-id="'+it.id+'">'+T('edit_item')+'</button>'+
-    '<button class="btn danger" data-act="delItem" data-id="'+it.id+'">'+T('del')+'</button>'+
-    '</div>';
-  openSheet(h);
-}
+    function itemDetailSheet(id) {
+        const it = S.items.find(i => i.id === id);
+        if (!it) return;
+        const cat = catOf(it.catId), loc = locOf(it.locId);
+        const st = expStatus(it);
+        const total = (+it.price || 0) * (+it.qty || 0);
+        const usingOpened = isUsingOpenedExpiry(it);
+        const effExp = effectiveExpDate(it);
+        const idle = isIdle(it) && st !== 'expired' && st !== 'soon';
+        const isDepleted = (+it.qty || 0) <= 0; // ⭐
+
+        let rows = '';
+        const row = (k, v) => v ? '<div class="detail-row"><span class="k">' + k + '</span><span class="v">' + esc(v) + '</span></div>' : '';
+        if (it.photo) {
+            rows += '<div style="text-align:center;margin-bottom:14px"><img src="' + it.photo + '" alt="" style="max-width:100%;border-radius:12px;max-height:180px;object-fit:contain"></div>';
+        }
+        rows += row(T('cat'), cat ? nm(cat) : T('uncat'));
+        rows += row(T('loc'), loc ? getLocFullPath(loc.id) : T('unloc'));
+        rows += row(T('qty'), (it.qty || 0) + (it.unit ? it.unit : ''));
+        if (it.price) rows += row(T('price'), '¥' + (+it.price).toFixed(2));
+        if (total) rows += row(T('value'), '¥' + total.toFixed(2));
+        if (it.barcode) rows += row(T('barcode'), it.barcode);
+        if (it.purchaseDate) rows += row(T('purchase'), it.purchaseDate);
+        if (it.prodDate) rows += row(T('prod'), it.prodDate);
+        if (it.shelfLife) rows += row(T('shelf'), it.shelfLife + ' 天');
+        if (it.expDate) rows += row(T('exp'), it.expDate + '（包装上）');
+        if (it.opened && !isDepleted) {
+            rows += row(T('opened_detail'), '✓' + (it.openedDate ? ' ' + it.openedDate : ''));
+            if (it.afterOpenShelf) rows += row(T('afterOpenShelf'), it.afterOpenShelf + ' 天');
+            if (usingOpened && effExp) { rows += row(T('eff_exp'), effExp); }
+        } else if (it.expDate && !isDepleted) {
+            rows += row(T('eff_exp'), effExp);
+        }
+        if (it.warrantyUntil) {
+            const w = warrantyStatus(it);
+            let wtxt = it.warrantyUntil;
+            if (w) {
+                if (w.kind === 'expired') wtxt += '（已过保修）';
+                else wtxt += '（剩 ' + w.days + ' 天）';
+            }
+            rows += row(T('warranty'), wtxt);
+        }
+        if (it.minQty) rows += row(T('min_qty'), it.minQty);
+        if (idle && !isDepleted) rows += row(T('idle'), T('idle_days', { n: idleDays(it) }));
+        if (it.note) rows += row(T('note'), it.note);
+        if (it.createdAt) {
+            const cd = new Date(it.createdAt);
+            const cstr = cd.getFullYear() + '-' + String(cd.getMonth() + 1).padStart(2, '0') + '-' + String(cd.getDate()).padStart(2, '0') + ' ' + String(cd.getHours()).padStart(2, '0') + ':' + String(cd.getMinutes()).padStart(2, '0');
+            rows += row(T('added_time'), cstr + '（' + relativeTime(it.createdAt) + '）');
+        }
+        if (it.lastUsedAt && it.lastUsedAt !== it.createdAt) {
+            const ld = new Date(it.lastUsedAt);
+            const lstr = ld.getFullYear() + '-' + String(ld.getMonth() + 1).padStart(2, '0') + '-' + String(ld.getDate()).padStart(2, '0') + ' ' + String(ld.getHours()).padStart(2, '0') + ':' + String(ld.getMinutes()).padStart(2, '0');
+            rows += row(T('last_used_time'), lstr + '（' + relativeTime(it.lastUsedAt) + '）');
+        }
+
+        let badge = '';
+        if (isDepleted) badge = '<span class="tag idle" style="background:var(--border);color:var(--text-2)">已用完</span>';
+        else if (st === 'expired') badge = '<span class="tag danger">' + T('expired') + '</span>';
+        else if (st === 'soon') badge = '<span class="tag warn">' + esc(expText(it)) + '</span>';
+        else if (idle) badge = '<span class="tag idle">闲置 ' + idleDays(it) + ' 天</span>';
+
+        let h = '<div class="sheet-hd"><h3>' + esc(it.name) + '</h3></div>';
+        if (badge) h += '<div style="margin-bottom:12px">' + badge + '</div>';
+        if (st === 'expired' && !isDepleted) {
+            h += '<div class="field-bar" style="margin-bottom:12px">' + ICON.leaf + '<div class="txt">' + T('field_clean_tip') + '</div></div>';
+        }
+        const w = warrantyStatus(it);
+        if (w && (w.kind === 'soon' || w.kind === 'expired')) {
+            const wtext = w.kind === 'expired' ? T('warranty_expired_days', { n: -w.days }) : T('warranty_days', { n: w.days });
+            h += '<div class="warranty-bar">' + ICON.warranty + '<div class="txt">' + esc(wtext) + '</div></div>';
+        }
+        h += '<div class="card" style="margin-bottom:0">' + rows + '</div>';
+
+        if (st === 'expired' && !isDepleted) {
+            const tip = getReuseTip(it.name);
+            if (tip) {
+                h += '<div class="reuse-tip"><b>' + T('reuse_title') + '</b><br>' + esc(tip.tip) + '</div>';
+            } else {
+                h += '<div class="reuse-tip"><b>' + T('reuse_title') + '</b><br>' + T('reuse_none') + '</div>';
+            }
+        }
+
+        // ⭐ 根据是否用完了修改按钮状态
+        h += '<div class="sheet-foot" style="flex-wrap:wrap">' +
+            (isDepleted
+                ? '<button class="btn" disabled style="flex:1 1 48%;opacity:0.5;cursor:not-allowed">已用完，无法取出</button>'
+                : '<button class="btn" data-act="takeItem" data-id="' + it.id + '" style="flex:1 1 48%">' + ICON.take + ' ' + T('take_action') + '</button>'
+            ) +
+            '<button class="btn rebuy" data-act="rebuyItem" data-id="' + it.id + '" style="flex:1 1 48%">' + ICON.refresh + ' ' + T('rebuy') + '</button>' +
+            '<button class="btn" data-act="editItem" data-id="' + it.id + '">' + T('edit_item') + '</button>' +
+            '<button class="btn danger" data-act="delItem" data-id="' + it.id + '">' + T('del') + '</button>' +
+            '</div>';
+        openSheet(h);
+    }
 function rebuySheet(itemId){
   const it = S.items.find(i => i.id === itemId);
   if(!it) return;
@@ -4588,11 +4699,33 @@ document.addEventListener('click', e=>{
     render(); return;
   }
   if(act==='gotoHome'){ UI.tab = 'home'; render(); window.scrollTo({top:0,behavior:'smooth'}); return; }
-  if(act==='gotoAlerts'){ UI.tab = 'alerts'; render(); return; }
+    if (act === 'gotoAlerts') {
+        UI.tab = 'alerts';
+
+        // ⭐ 进入时，立刻计算一次真实的异常数量，并存入本地
+        let realCount = 0;
+        activeItems().forEach(i => {
+            const st = expStatus(i);
+            const isDepleted = (+i.qty || 0) <= 0;
+            if (isDepleted || st === 'expired' || st === 'soon' || isLow(i)) realCount++;
+            else {
+                const w = warrantyStatus(i);
+                if (w && (w.kind === 'expired' || w.kind === 'soon')) realCount++;
+            }
+        });
+        S.stats.lastAlertCount = realCount;
+        save();
+
+        render();
+        return;
+    }
   if(act==='gotoStats'){ UI.tab = 'stats'; render(); return; }
   if(act==='gotoIdle'){
     UI.tab = 'items'; UI.fst = 'idle'; UI.fcat = ''; UI.freshOnly = false; UI.focusOnly = false; UI.limit = 60; render(); return;
-  }
+    }
+    if (act === 'gotoDepleted') {
+        UI.tab = 'items'; UI.fst = 'depleted'; UI.fcat = ''; UI.freshOnly = false; UI.focusOnly = false; UI.limit = 60; render(); return;
+    }
   if(act==='closeSheet'){ closeSheet(); return; }
   if(act==='loadMore'){ UI.limit += 60; renderList(); return; }
   if(act==='setFilter'){ UI.fst = el.dataset.fst; UI.limit=60; render(); return; }
@@ -4795,18 +4928,60 @@ document.addEventListener('click', e=>{
     save(); toast(T('ai_api_key_saved')); render({noScroll:true}); return;
   }
   if(act==='clearAiKey'){ S.settings.aiApiKey = ''; save(); render({noScroll:true}); return; }
-  if(act==='takeItem'){
-    const it = S.items.find(i => i.id === el.dataset.id);
-    if(!it) return;
-    it.lastTakenAt = Date.now();
-    it.lastUsedAt = Date.now();
-    markRecorded();
-    save();
-    toast(T('take_done') + '：' + it.name, 2000);
-    closeSheet();
-    render({noScroll:true});
-    return;
-  }
+    if (act === 'takeItem') {
+        takeItemSheet(el.dataset.id);
+        return;
+    }
+    if (act === 'takeQtyMinus') {
+        const inp = document.getElementById('takeQtyInput');
+        if (inp) { let v = parseInt(inp.value, 10); if (isNaN(v) || v < 1) v = 1; inp.value = Math.max(1, v - 1); }
+        return;
+    }
+    if (act === 'takeQtyPlus') {
+        const inp = document.getElementById('takeQtyInput');
+        if (inp) { let v = parseInt(inp.value, 10); if (isNaN(v) || v < 1) v = 1; inp.value = v + 1; }
+        return;
+    }
+    if (act === 'doTake') {
+        const it = S.items.find(i => i.id === el.dataset.id);
+        if (!it) return;
+        const type = el.dataset.type;
+        const inp = document.getElementById('takeQtyInput');
+        let takeQty = parseInt(inp ? inp.value : '1', 10);
+        if (isNaN(takeQty) || takeQty < 1) takeQty = 1;
+
+        it.lastTakenAt = Date.now();
+        it.lastUsedAt = Date.now();
+
+        let msg = '';
+        if (type === 'consume') {
+            if ((+it.qty || 0) < takeQty) {
+                toast('取出数量不能大于当前库存哦', 2500);
+                return;
+            }
+            it.qty = (+it.qty || 0) - takeQty;
+            if (it.qty <= 0) {
+                it.qty = 0;
+                it.locId = '';
+                msg = `已用完「${it.name}」`;
+            } else {
+                it.locId = '';
+                msg = `已消耗取出 ${takeQty}${it.unit || ''}，剩余 ${it.qty}${it.unit || ''}，已归为「未归位」`;
+            }
+        } else if (type === 'borrow') {
+            it.locId = '';
+            msg = `已取出 ${takeQty}${it.unit || ''}，已归为「未归位」`;
+        } else {
+            msg = `已记录使用：${it.name}`;
+        }
+
+        markRecorded();
+        save();
+        toast(msg, 3000);
+        closeSheet();
+        render({ noScroll: true });
+        return;
+    }
   /* ★ 冷藏/冷冻保质期推荐 ★ */
   if(act==='pickShelf'){
     const days = parseInt(el.dataset.days, 10) || 0;
