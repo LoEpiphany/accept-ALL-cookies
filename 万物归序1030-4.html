@@ -68,7 +68,6 @@
             -webkit-font-smoothing: antialiased
         }
 
-        
         #app {
             max-width: 600px;
             margin: 0 auto;
@@ -7134,7 +7133,7 @@
             let rows = '';
             const row = (k, v) => v ? '<div class="detail-row"><span class="k">' + k + '</span><span class="v">' + esc(v) + '</span></div>' : '';
             const ps = photoSrc(it.photo); if (ps) {
-                rows += '<div style="..."><img src="' + ps + '" alt="" data-act="viewPhoto" style="max-width:100%;border-radius:12px;max-height:180px;object-fit:contain;cursor:pointer"></div>';
+                rows += '<div style="margin-bottom:14px"><img src="' + ps + '" alt="" data-act="viewPhoto" style="display:block;margin:0 auto;max-width:100%;border-radius:12px;max-height:180px;object-fit:contain;cursor:pointer"></div>';
             }
             rows += row(T('cat'), cat ? nm(cat) : T('uncat'));
             rows += row(T('loc'), loc ? getLocFullPath(loc.id) : T('unloc'));
