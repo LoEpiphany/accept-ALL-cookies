@@ -8717,7 +8717,7 @@
                 if (!n) return;
                 customConfirm(T('batch_delete_title'), T('batch_delete_msg', { n: n }), () => {
                     UI.selectedIds.forEach(id => { const it = S.items.find(i => i.id === id); if (it) it.deletedAt = Date.now(); });
-                    UI.organizeMode = false; UI.selectedIds.clear();
+                    UI.selectedIds.clear();
                     save(); markRecorded(); toast(T('batch_moved_trash', { n: n })); render();
                 }, { danger: true, okText: '删除' });
                 return;
@@ -8755,9 +8755,8 @@
                         it.deletedAt = Date.now();
                     });
 
-                    // 4. 重置状态并刷新
+                    // 4. 重置选中状态，但保留整理模式
                     UI.selectedIds.clear();
-                    UI.organizeMode = false;
                     save();
                     toast('合并成功！', 2000);
                     checkAchievements();
@@ -8771,7 +8770,7 @@
                 customConfirm(T('batch_expire_title'), T('batch_expire_msg', { n: n }), () => {
                     const today = todayStr();
                     UI.selectedIds.forEach(id => { const it = S.items.find(i => i.id === id); if (it) { it.expDate = today; it.opened = false; } });
-                    UI.organizeMode = false; UI.selectedIds.clear();
+                    UI.selectedIds.clear();
                     save(); markRecorded(); toast(T('batch_marked_expired', { n: n })); render();
                 }, { danger: false, okText: '确定' });
                 return;
@@ -8797,7 +8796,6 @@
                 const targetName = locId ? getLocFullPath(locId) : T('unloc');
                 toast(T('moved', { n: targetName }), 2200);
                 UI.selectedIds.clear();
-                UI.organizeMode = false;
                 closeSheet();
                 UI.tab = 'zones';
                 render();
