@@ -5658,6 +5658,9 @@
             return d2 < d1;
         }
         function expStatus(it) {
+            // ⭐ 核心修改：只要库存 <= 0，直接判定为已用完，不再参与临期/过期计算
+            if ((+it.qty || 0) <= 0) return 'depleted';
+
             const d = daysUntil(effectiveExpDate(it));
             if (d === null) return 'none';
             if (d < 0) return 'expired';
@@ -6097,7 +6100,7 @@
             const isDepleted = (+it.qty || 0) <= 0; // ⭐
 
             let badge = '';
-            if (isDepleted) {
+            if (isDepleted || st === 'depleted') {
                 badge = '<span class="tag idle" style="background:var(--border);color:var(--text-2)">已用完</span>';
             }
             else if (st === 'expired') badge = '<span class="tag danger">' + T('expired') + '</span>';
