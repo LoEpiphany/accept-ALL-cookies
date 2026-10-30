@@ -8118,14 +8118,16 @@
             if (!st.llmApiKey) throw new Error('未配置大模型 Key');
             const base64Image = dataUrl.split(',')[1];
 
-            // ⭐ 必须改回请求你的本地代理！
             const url = 'http://localhost:8080/hunyuan/chat/completions';
 
-            const prompt = '这是一张什么物品的照片？请仔细观察它的真实用途。用不超过4个汉字直接回答物品名称（例如：蓝牙耳机、镜头盖、抽纸）。只回答名称，不要任何解释。';
+            // ⭐ 核心修改：重新设计 Prompt，加入品牌和药品规则
+            const prompt = `请仔细观察这张照片，识别其中的物品名称，并遵循以下规则：
+1. 【药品类】：请提取完整的药品名称（品牌/通用名+剂型）和主要功效。格式示例："芬必得布洛芬缓释胶囊 退烧止痛"、"西瓜霜清咽含片 口腔溃疡"。
+2. 【其他物品】（食品/日化/数码等）：请尽可能识别出画面上的品牌名称，格式示例："小米蓝牙耳机"、"乐事原味薯片"、"维达抽纸"。
+3. 如果画面中没有明显品牌，直接返回物品的具体通用名称（如："无线蓝牙耳机"、"木糖醇口香糖"）。
+4. 请保持精炼，字数控制在15字以内。直接返回名称结果，不要输出任何标点符号（空格保留）、解释、代码块或多余的话。`;
 
             const body = {
-                // 使用腾讯云当前有效的视觉模型 ID
-                // 如果报错说找不到，试试换成 "hunyuan-vision" 或 "hunyuan-t1-vision-20250916"
                 model: "hy-vision-2.0-instruct",
                 messages: [{
                     role: "user",
@@ -8137,7 +8139,7 @@
                         { type: "text", text: prompt }
                     ]
                 }],
-                temperature: 0.1
+                temperature: 0.1 // 保持低温度，让模型严谨输出，不要瞎编
             };
 
             const headers = {
@@ -8167,7 +8169,11 @@
                 if (data.error) throw new Error(data.error.message || '大模型请求失败');
 
                 let answer = data.choices[0].message.content.trim();
-                return answer.replace(/[。！？，、\s]/g, '');
+
+                // ⭐ 修改清理逻辑：去掉句号、逗号、引号等，但保留空格
+                answer = answer.replace(/[。！？，、“”"'；：]/g, '');
+
+                return answer;
 
             } catch (e) {
                 clearTimeout(timeoutId);
