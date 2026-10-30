@@ -8123,12 +8123,12 @@
 
             const url = 'http://localhost:8080/hunyuan/chat/completions';
 
-            // ⭐ 核心修改：重新设计 Prompt，加入品牌和药品规则
-            const prompt = `请仔细观察这张照片，识别其中的物品名称，并遵循以下规则：
-1. 【药品类】：请提取完整的药品名称（品牌/通用名+剂型）和主要功效。格式示例："芬必得布洛芬缓释胶囊 退烧止痛"、"西瓜霜清咽含片 口腔溃疡"。
-2. 【其他物品】（食品/日化/数码等）：请尽可能识别出画面上的品牌名称，格式示例："小米蓝牙耳机"、"乐事原味薯片"、"维达抽纸"。
-3. 如果画面中没有明显品牌，直接返回物品的具体通用名称（如："无线蓝牙耳机"、"木糖醇口香糖"）。
-4. 请保持精炼，字数控制在15字以内。直接返回名称结果，不要输出任何标点符号（空格保留）、解释、代码块或多余的话。`;
+            // ⭐ 极度精简的 Prompt，用换行和冒号代替长句
+            const prompt = `识别图片主体。规则：
+药品：品牌+通用名+功效（如：芬必得布洛芬 退烧止痛）
+其他：品牌+品名（如：小米蓝牙耳机）
+无品牌：输出通用名。
+仅输出结果，15字内，无标点，无解释。`;
 
             const body = {
                 model: "hy-vision-2.0-instruct",
@@ -8142,7 +8142,8 @@
                         { type: "text", text: prompt }
                     ]
                 }],
-                temperature: 0.1 // 保持低温度，让模型严谨输出，不要瞎编
+                temperature: 0.1,
+                max_tokens: 30 // ⭐ 强制限制输出长度，最多几十个 token 就断了
             };
 
             const headers = {
@@ -8172,10 +8173,7 @@
                 if (data.error) throw new Error(data.error.message || '大模型请求失败');
 
                 let answer = data.choices[0].message.content.trim();
-
-                // ⭐ 修改清理逻辑：去掉句号、逗号、引号等，但保留空格
                 answer = answer.replace(/[。！？，、“”"'；：]/g, '');
-
                 return answer;
 
             } catch (e) {
@@ -8822,7 +8820,7 @@
                         if (files.length === 1) {
                             // 只有一张：走原本的单张逻辑
                             try {
-                                const dataUrl = await compressImage(files[0], 480, 0.6);
+                                const dataUrl = await compressImage(files[0], 384, 0.5);
                                 const result = await runHybridRecognition(dataUrl);
                                 UI.tab = 'items'; render();
                                 setTimeout(() => itemFormSheet(null, result || { photo: dataUrl }), 120);
