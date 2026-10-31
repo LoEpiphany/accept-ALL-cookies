@@ -8122,7 +8122,7 @@
             const CONFIG = {
                 hunyuan: {
                     // 腾讯混元官方直连
-                    url: 'https://acceptallcookies.vercel.app/api/proxyhunyuan', 
+                    url: 'https://corsproxy.io/?url=https%3A%2F%2Ftokenhub.tencentmaas.com%2Fv1%2Fchat%2Fcompletions', 
                     model: 'hy-vision-2.0-instruct',
                     // 如果你还在用本地代理，把 url 换成下面这行，并在代理里把 /hunyuan 转发到官方地址
                     // url: 'http://localhost:8080/hunyuan/chat/completions',
@@ -8179,7 +8179,7 @@
             };
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
 
             try {
                 const res = await fetch(service.url, {
