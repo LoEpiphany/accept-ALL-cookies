@@ -1,23 +1,20 @@
-# --- Node.js ---
+# 依赖包
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# --- Android 构建产物和缓存 ---
+# 编译输出
+dist/
+www/ # 如果你不需要保留前端源码可以忽略这行，但建议保留
+
+# Capacitor / Android 编译生成物
 android/.gradle/
-android/build/
 android/app/build/
+android/build/
 android/local.properties
 android/.idea/
-*.iml
-*.apk
-*.aab
+android/capacitor-cordova-android-plugins/
 
-# --- Capacitor 自动生成的 Web 产物 ---
-android/app/src/main/assets/public/
-
-# --- IDE 和系统文件 ---
-.vscode/
+# 系统或编辑器生成文件
 .DS_Store
-Thumbs.db
+.vscode/
+.idea/
+*.log

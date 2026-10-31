@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>万物归序</title>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style id="capacitor-safe-area"></style>
     <style>
         :root {
             --primary: #4A9D7F;
@@ -7663,6 +7663,25 @@
             render();
             itemFormSheet(null, prefill);
         }
+
+        // ⭐ 压缩相机返回的 Base64 图片
+        function compressDataUrl(dataUrl, maxW = 800, quality = 0.6) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width, h = img.height;
+                    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+        }
+
         function compressImage(file, maxW, quality) {
             return new Promise((resolve, reject) => {
                 const fr = new FileReader();
@@ -7682,6 +7701,23 @@
                 };
                 fr.onerror = reject;
                 fr.readAsDataURL(file);
+            });
+        }
+        // ⭐ 新增：把相机返回的 Base64 图片进行缩放和压缩
+        function compressDataUrl(dataUrl, maxW = 800, quality = 0.6) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width, h = img.height;
+                    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = reject;
+                img.src = dataUrl;
             });
         }
         async function callGeminiVision(apiKey, imageDataUrl) {
@@ -8654,7 +8690,7 @@
             }
             return newItems;
         }
-        document.addEventListener('click', e => {
+        document.addEventListener('click', async e => {
             if (e.target.closest('#onboardNext')) { onboardNext(); return; }
             if (e.target.closest('#onboardSkip')) { finishOnboard(); return; }
             if (suppressClick) { suppressClick = false; return; }
@@ -8832,32 +8868,51 @@
                 if (mode === 'scan') { UI.tab = 'scan'; render(); }
                 else if (mode === 'ai') {
                     if (UI.tab === 'scan') stopScan();
+
+                    // ⭐ 如果有原生相机插件，弹出我们自己的漂亮菜单
+                    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
+                        let sheetHtml = '<div class="sheet-hd"><h3>添加物品照片</h3></div>';
+                        sheetHtml += '<div class="add-row" style="grid-template-columns:1fr 1fr; gap:16px; margin-top:20px">';
+
+                        // 拍照按钮
+                        sheetHtml += '<div class="add-mini" data-act="nativeCameraShot" style="padding:24px 10px">' +
+                            '<div class="mi-ico" style="width:54px;height:54px;border-radius:16px;color:var(--primary);background:var(--primary-l);border:none">' + ICON.camera + '</div>' +
+                            '<div class="mi-t" style="font-size:15px">拍照识别</div>' +
+                            '<div class="mi-d" style="font-size:11px">打开相机</div>' +
+                            '</div>';
+
+                        // 相册按钮
+                        sheetHtml += '<div class="add-mini" data-act="nativeGalleryPick" style="padding:24px 10px">' +
+                            '<div class="mi-ico" style="width:54px;height:54px;border-radius:16px;color:var(--fresh);background:var(--fresh-l);border:none">' + ICON.file + '</div>' +
+                            '<div class="mi-t" style="font-size:15px">从相册选</div>' +
+                            '<div class="mi-d" style="font-size:11px">选择已有图片</div>' +
+                            '</div>';
+
+                        sheetHtml += '</div>';
+                        openSheet(sheetHtml);
+                        return;
+                    }
+
+                    // 网页端降级：多选
                     const inp = document.getElementById('photoInput');
                     inp.value = '';
-
-                    // ⭐ 开启多选模式，并禁用强制相机（方便从相册选）
                     inp.setAttribute('multiple', 'multiple');
                     inp.removeAttribute('capture');
-
                     inp.onchange = async () => {
                         const files = Array.from(inp.files);
                         if (!files.length) return;
-                        inp.value = ''; // 清空防止重复触发
-
+                        inp.value = '';
                         if (files.length === 1) {
-                            // 只有一张：走原本的单张逻辑
                             try {
-                                const dataUrl = await compressImage(files[0], 384, 0.5);
+                                const dataUrl = await compressImage(files[0], 800, 0.6);
                                 const result = await runHybridRecognition(dataUrl);
                                 UI.tab = 'items'; render();
                                 setTimeout(() => itemFormSheet(null, result || { photo: dataUrl }), 120);
-                            } catch (err) { console.warn(err); toast(T('ocr_extract_failed')); }
+                            } catch (err) { toast('图片处理失败'); }
                         } else {
-                            // 多张图片：启动批量队列
                             window.__batchPhotoQueue = files;
                             window.__totalBatchCount = files.length;
-                            UI.tab = 'items';
-                            render();
+                            UI.tab = 'items'; render();
                             processNextBatchPhoto();
                         }
                     };
@@ -8870,25 +8925,76 @@
                 }
                 return;
             }
+            // ⭐ 新增：调用原生相机
+            if (act === 'nativeCameraShot') {
+                closeSheet();
+                if (!window.Capacitor.Plugins.Camera) return;
+                try {
+                    const image = await window.Capacitor.Plugins.Camera.getPhoto({
+                        quality: 80, resultType: 'dataUrl', source: 'CAMERA', saveToGallery: false
+                    });
+                    toast('正在处理图片...', 2000);
+                    const compressed = await compressDataUrl(image.dataUrl, 800, 0.6);
+                    const result = await runHybridRecognition(compressed);
+                    UI.tab = 'items'; render();
+                    setTimeout(() => itemFormSheet(null, result || { photo: compressed }), 120);
+                } catch (err) { console.warn('相机取消', err); }
+                return;
+            }
+
+            // ⭐ 新增：调用原生相册
+            if (act === 'nativeGalleryPick') {
+                closeSheet();
+                if (!window.Capacitor.Plugins.Camera) return;
+                try {
+                    const image = await window.Capacitor.Plugins.Camera.getPhoto({
+                        quality: 80, resultType: 'dataUrl', source: 'PHOTOS', saveToGallery: false
+                    });
+                    toast('正在处理图片...', 2000);
+                    const compressed = await compressDataUrl(image.dataUrl, 800, 0.6);
+                    const result = await runHybridRecognition(compressed);
+                    UI.tab = 'items'; render();
+                    setTimeout(() => itemFormSheet(null, result || { photo: compressed }), 120);
+                } catch (err) { console.warn('相册取消', err); }
+                return;
+            }
             if (act === 'takePhoto') {
-                const inp = document.getElementById('photoInput');
-                inp.value = '';
-
-                // ⭐ 还原单张拍照模式（只调用相机，不允许多选）
-                inp.removeAttribute('multiple');
-                inp.setAttribute('capture', 'environment');
-
-                inp.onchange = async () => {
-                    const f = inp.files && inp.files[0];
-                    if (!f) return;
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
                     try {
-                        const dataUrl = await compressImage(f, 480, 0.6);
-                        window.__currentPhoto = dataUrl;
+                        const image = await window.Capacitor.Plugins.Camera.getPhoto({
+                            quality: 80, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', saveToGallery: false
+                        });
+                        toast('正在处理图片...', 2000);
+                        const compressed = await compressDataUrl(image.dataUrl, 800, 0.6);
+
+                        window.__currentPhoto = compressed;
                         const box = document.querySelector('.photo-box');
-                        if (box) { box.outerHTML = '<div class="photo-box"><img src="' + dataUrl + '" alt=""><button class="rm" data-act="removePhoto">×</button></div>'; }
-                    } catch (err) { toast(T('ocr_extract_failed')); }
-                };
-                inp.click();
+                        if (box) {
+                            box.outerHTML = '<div class="photo-box" style="position:relative"><img src="' + compressed + '" alt="" data-act="viewPhoto" style="cursor:pointer"><button class="rm" data-act="removePhoto">×</button><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:3px 0;cursor:pointer;border-radius:0 0 11px 11px" data-act="takePhoto">重拍</div></div>';
+                        }
+                    } catch (err) {
+                        console.warn('用户取消拍照', err);
+                    }
+                } else {
+                    // 网页端降级逻辑
+                    const inp = document.getElementById('photoInput');
+                    inp.value = '';
+                    inp.removeAttribute('multiple');
+                    inp.setAttribute('capture', 'environment');
+                    inp.onchange = async () => {
+                        const f = inp.files && inp.files[0];
+                        if (!f) return;
+                        try {
+                            const dataUrl = await compressImage(f, 800, 0.6);
+                            window.__currentPhoto = dataUrl;
+                            const box = document.querySelector('.photo-box');
+                            if (box) {
+                                box.outerHTML = '<div class="photo-box" style="position:relative"><img src="' + dataUrl + '" alt="" data-act="viewPhoto" style="cursor:pointer"><button class="rm" data-act="removePhoto">×</button><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;text-align:center;padding:3px 0;cursor:pointer;border-radius:0 0 11px 11px" data-act="takePhoto">重拍</div></div>';
+                            }
+                        } catch (err) { toast('图片处理失败'); }
+                    };
+                    inp.click();
+                }
                 return;
             }
             if (act === 'removePhoto') {
@@ -9640,22 +9746,76 @@
             save(); closeSheet(); toast(T('saved')); checkAchievements(); render({ noScroll: true });
         }
         window.addEventListener('hashchange', () => { render(); });
-        load();
-        applyTheme();
-        render();
-        PhotoDB.init().then(async () => {
-            await migratePhotosToIDB();
-            render({ noScroll: true });
-        });
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                const s = document.getElementById('splash');
-                if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 450); }
-            }, 900);
-            if (!S.settings.onboarded && !isShareMode()) {
-                setTimeout(() => showOnboard(), 1100);
+        // ========== 启动保护机制 ==========
+        function removeSplash() {
+            const s = document.getElementById('splash');
+            if (s && !s.classList.contains('hide')) {
+                s.classList.add('hide');
+                setTimeout(() => s.remove(), 450);
             }
+        }
+
+        // 如果发生任何错位，3秒后强制移除启动图
+        setTimeout(removeSplash, 3000);
+
+        // 全局错误捕获，防止死机
+        window.addEventListener('error', (e) => {
+            console.error('启动报错:', e.message);
+            removeSplash();
         });
+
+        // 尝试启动
+        try {
+            load();
+            applyTheme();
+            render();
+            removeSplash(); // 渲染成功，立刻关掉启动图
+        } catch (err) {
+            console.error('初始化崩溃:', err);
+            // 尝试兜底：清空数据重试
+            document.getElementById('view').innerHTML = `
+                <div class="empty" style="padding-top:100px;">
+                    <div style="font-size:16px;color:var(--danger);font-weight:600;margin-bottom:10px;">应用启动异常</div>
+                    <div style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:20px;">${err.message}</div>
+                    <button class="btn primary" onclick="localStorage.clear();location.reload();">清除本地数据并重试</button>
+                </div>`;
+            removeSplash();
+        }
+
+        // 延迟处理非阻塞任务
+        setTimeout(() => {
+            try {
+                // 初始化相册 IDB
+                PhotoDB.init().then(async () => {
+                    await migratePhotosToIDB();
+                    render({ noScroll: true });
+                }).catch(e => console.log('IDB初始化失败', e));
+
+                // 新手引导
+                if (S && !S.settings.onboarded && !isShareMode()) {
+                    showOnboard();
+                }
+            } catch (e) { console.log(e); }
+        }, 800);
+
+        // 监听安卓原生返回键
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', ({ canGoBack }) => {
+                // 如果当前弹窗开着，先关弹窗
+                if (!document.getElementById('mask').classList.contains('hidden')) {
+                    closeSheet();
+                } else if (UI.organizeMode) {
+                    UI.organizeMode = false; UI.selectedIds.clear(); render({ noScroll: true });
+                } else if (UI.tab !== 'home') {
+                    // 如果不在首页，先回首页
+                    UI.tab = 'home';
+                    render();
+                } else {
+                    // 已经在首页，退出 APP
+                    window.Capacitor.Plugins.App.exitApp();
+                }
+            });
+        }
         // 键盘快捷键
         document.addEventListener('keydown', (e) => {
             if (isShareMode()) return;
