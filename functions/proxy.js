@@ -1,4 +1,4 @@
-export async function onRequest(context) {
+export default async function onRequest(context) {
   const { request } = context;
   
   // 1. 处理浏览器的预检请求 (OPTIONS)
