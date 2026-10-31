@@ -5658,6 +5658,9 @@
             return d2 < d1;
         }
         function expStatus(it) {
+            // ⭐ 核心修改：只要库存 <= 0，直接判定为已用完，不再参与临期/过期计算
+            if ((+it.qty || 0) <= 0) return 'depleted';
+
             const d = daysUntil(effectiveExpDate(it));
             if (d === null) return 'none';
             if (d < 0) return 'expired';
@@ -6097,7 +6100,7 @@
             const isDepleted = (+it.qty || 0) <= 0; // ⭐
 
             let badge = '';
-            if (isDepleted) {
+            if (isDepleted || st === 'depleted') {
                 badge = '<span class="tag idle" style="background:var(--border);color:var(--text-2)">已用完</span>';
             }
             else if (st === 'expired') badge = '<span class="tag danger">' + T('expired') + '</span>';
@@ -6724,17 +6727,11 @@
             h += '<div class="row mt14"><div>' + T('manage_cat') + '</div><button class="btn" style="padding:8px 14px;font-size:13px" data-act="openCatManage">' + S.categories.length + ' ›</button></div>';
             h += '<div class="row mt14"><div>' + T('show_onboard') + '</div><button class="btn" style="padding:8px 14px;font-size:13px" data-act="showOnboardAgain">›</button></div>';
             h += '</div>';
-            h += '<div class="sec">百度智能云 API 设置</div><div class="card">';
             h += '<div class="sec">大模型视觉 API（强烈推荐）</div><div class="card">';
             h += '<div class="small muted" style="margin-bottom:10px">大模型懂常识，能彻底解决“圆盘认成耳机”的错误。你可以申请腾讯混元、智谱 GLM-4V 或 阿里通义千问 VL（都是免费的，只需一个 API Key）。</div>';
             h += '<div class="field"><label>API Key</label><input class="api-key-input" id="llmApiKeyInput" type="text" value="' + esc(st.llmApiKey || '') + '" placeholder="粘贴你的 API Key" autocomplete="off"></div>';
             h += '<div class="field"><label>服务商</label><select id="llmTypeInput" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ccc"><option value="hunyuan" ' + (st.llmType === 'hunyuan' ? 'selected' : '') + '>腾讯混元 (hunyuan-vision)</option><option value="zhipu" ' + (st.llmType === 'zhipu' ? 'selected' : '') + '>智谱 GLM-4V</option><option value="dashscope" ' + (st.llmType === 'dashscope' ? 'selected' : '') + '>阿里通义千问 VL</option></select></div>';
             h += '<button class="btn primary block" data-act="saveLlmKey">' + T('save') + '</button>';
-            h += '</div>';
-            h += '<div class="small muted" style="margin-bottom:10px">配置后，拍照将优先使用百度高精度识别（图像识别 + 文本识别），无网络或额度用尽时自动降级为本地识别。</div>';
-            h += '<div class="field"><label>API Key</label><input class="api-key-input" id="baiduApiKeyInput" type="text" value="' + esc(st.baiduApiKey || '') + '" placeholder="请输入 API Key" autocomplete="off"></div>';
-            h += '<div class="field"><label>Secret Key</label><input class="api-key-input" id="baiduSecretKeyInput" type="password" value="' + esc(st.baiduSecretKey || '') + '" placeholder="请输入 Secret Key" autocomplete="off"></div>';
-            h += '<button class="btn primary block" data-act="saveBaiduKeys">' + T('save') + '</button>';
             h += '</div>';
             h += '<div class="sec">' + T('share_title') + '</div><div class="card">';
             h += '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">' +
@@ -6903,7 +6900,7 @@
             toast(`正在识别第 ${window.__totalBatchCount - window.__batchPhotoQueue.length} 张，还剩 ${window.__batchPhotoQueue.length} 张...`, 3000);
 
             try {
-                const dataUrl = await compressImage(f, 480, 0.6);
+                const dataUrl = await compressImage(f, 384, 0.5);
                 const result = await runHybridRecognition(dataUrl);
                 UI.tab = 'items'; render();
                 setTimeout(() => itemFormSheet(null, result || { photo: dataUrl }), 150);
@@ -7975,70 +7972,57 @@
         }
         // ================================================
         async function runHybridRecognition(dataUrl) {
-            const hasBaidu = !!(S.settings.baiduApiKey && S.settings.baiduSecretKey);
             const hasLlm = !!(S.settings.llmApiKey);
-
             let result = { photo: dataUrl, _hit: 'ai' };
-            let baiduVisionName = '';
-            let llmVisionName = '';
-            let ocrText = '';
 
-            toast('正在启动多重识别引擎...', 3000);
+            toast('正在启动腾讯混元多模态识别...', 3000);
 
-            // === 1. 百度视觉与 OCR ===
-            if (hasBaidu) {
-                try {
-                    const visionList = await callBaiduVision(dataUrl);
-                    if (visionList && visionList.length > 0) baiduVisionName = visionList[0].keyword;
-                    ocrText = await callBaiduOcr(dataUrl);
-                } catch (err) { console.warn('百度失败', err); }
-            }
-
-            // === 2. 大模型视觉（懂常识） ===
             if (hasLlm) {
                 try {
-                    llmVisionName = await callLlmVision(dataUrl);
-                } catch (err) { console.warn('大模型失败', err); }
-            }
+                    // ⭐ 这里接收到的是解析好的 JSON 对象
+                    const llmData = await callLlmVision(dataUrl);
 
-            // === 3. OCR 文字解析 ===
-            let parsedOcr = {};
-            if (ocrText) {
-                parsedOcr = parseOcrText(ocrText);
-                if (parsedOcr.name && /营养|成分|说明|标准|日期|净含|规格|警告/.test(parsedOcr.name)) {
-                    delete parsedOcr.name;
+                    if (llmData.name) {
+                        // 1. 处理名称（翻译品牌）
+                        result.name = autoTranslateBrand(llmData.name);
+                        const freshMatch = matchShelfLife(result.name);
+                        if (freshMatch && freshMatch.catId) result.catId = freshMatch.catId;
+                    }
+
+                    // 2. 处理日期和保质期
+                    if (llmData.prodDate && /^\d{4}-\d{2}-\d{2}$/.test(llmData.prodDate)) {
+                        result.prodDate = llmData.prodDate;
+                    }
+                    if (llmData.shelfLife && +llmData.shelfLife > 0) {
+                        result.shelfLife = +llmData.shelfLife;
+                        // 如果识别出了生产日期和保质期，自动算过期日
+                        if (result.prodDate) {
+                            result.expDate = addDays(result.prodDate, result.shelfLife);
+                        }
+                    } else if (llmData.prodDate && !llmData.shelfLife) {
+                        // 如果只有生产日期没有保质期天数，只能把生产日期填进去
+                        result.prodDate = llmData.prodDate;
+                    }
+
+                    // 3. 处理数量和单位
+                    if (llmData.quantity && +llmData.quantity > 0) {
+                        result.qty = +llmData.quantity;
+                    }
+                    if (llmData.unit) {
+                        result.unit = normalizeUnit(llmData.unit) || llmData.unit;
+                    }
+                    // 兜底：如果没给单位，尝试自己猜一个
+                    if (!result.unit && result.name) {
+                        result.unit = guessUnit(result.name);
+                    }
+
+                } catch (err) {
+                    console.warn('混元识别解析失败:', err);
+                    toast('识别异常，请手动填写');
                 }
-            }
-
-            // === 4. 综合裁决（大模型常识 > OCR文字 > 百度视觉） ===
-            let finalName = '';
-
-            if (llmVisionName) {
-                finalName = llmVisionName;
-                // 如果百度瞎猜了别的（比如把圆盘猜成耳机），记在备注里
-                if (baiduVisionName && !finalName.includes(baiduVisionName) && baiduVisionName !== '非植物') {
-                    result.note = '传统视觉曾误判为：' + baiduVisionName;
-                }
-            } else if (parsedOcr.name) {
-                finalName = parsedOcr.name;
-            } else if (baiduVisionName) {
-                finalName = baiduVisionName;
-            }
-
-            if (finalName) {
-                result.name = autoTranslateBrand(finalName);
-                const freshMatch = matchShelfLife(result.name);
-                if (freshMatch && freshMatch.catId) result.catId = freshMatch.catId;
-                if (!result.unit) result.unit = guessUnit(result.name);
             } else {
-                result.name = '';
-                toast('未能识别，请手动填写');
+                toast('请先配置大模型 API Key');
             }
-
-            // 合并 OCR 找出的日期等数据
-            if (parsedOcr.prodDate) result.prodDate = parsedOcr.prodDate;
-            if (parsedOcr.shelfLife) result.shelfLife = parsedOcr.shelfLife;
-            if (parsedOcr.expDate) result.expDate = parsedOcr.expDate;
 
             return result;
         }
@@ -8132,72 +8116,100 @@
             const st = S.settings;
             if (!st.llmApiKey) throw new Error('未配置大模型 Key');
             const base64Image = dataUrl.split(',')[1];
+            const type = st.llmType || 'hunyuan'; // 默认混元
 
-            let url = '';
-            let body = {};
-            let headers = { 'Content-Type': 'application/json' };
+            // ⭐ 各家大模型的接口配置字典
+            const CONFIG = {
+                hunyuan: {
+                    // 腾讯混元官方直连
+                    url: 'https://acceptallcookies.vercel.app/api/proxyhunyuan', 
+                    model: 'hy-vision-2.0-instruct',
+                    // 如果你还在用本地代理，把 url 换成下面这行，并在代理里把 /hunyuan 转发到官方地址
+                    // url: 'http://localhost:8080/hunyuan/chat/completions',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${st.llmApiKey}`
+                    }
+                },
+                zhipu: {
+                    // 智谱 GLM-4V 官方直连
+                    url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+                    model: 'glm-4v',
+                    // 本地代理地址：http://localhost:8080/zhipu/api/paas/v4/chat/completions
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${st.llmApiKey}`
+                    }
+                },
+                dashscope: {
+                    // 阿里通义千问官方直连 (兼容模式)
+                    url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+                    model: 'qwen-vl-plus',
+                    // 本地代理地址：如果你需要走代理，请自行在 proxy.js 里配置 dashscope 的转发
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${st.llmApiKey}`
+                    }
+                }
+            };
 
-            // 让大模型用极简的词语回答，防止废话
-            const prompt = '这是一张什么物品的照片？请仔细观察它的真实用途。用不超过4个汉字直接回答物品名称（例如：蓝牙耳机、镜头盖、抽纸）。只回答名称，不要任何解释。';
+            const service = CONFIG[type] || CONFIG.hunyuan;
 
-            if (st.llmType === 'hunyuan') {
-                // 腾讯混元通过 TokenHub 的请求配置
-                url = 'http://localhost:8080/hunyuan/chat/completions'; // 本地代理会将它转发到 TokenHub
-                headers['Authorization'] = `Bearer ${st.llmApiKey}`;
-                body = {
-                    model: "hunyuan-vision-latest", // 填入你看到的视觉模型 ID
-                    messages: [{
-                        role: "user", content: [
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
-                            { type: "text", text: prompt }
-                        ]
-                    }],
-                    temperature: 0.1
-                };
+            // 统一的 Prompt（这段无需修改）
+            const prompt = `请仔细观察照片，提取物品信息，必须严格返回 JSON 格式，不要输出任何 markdown 代码块或额外解释：
+{
+  "name": "物品名称。药品格式：品牌+通用名+功效（如：芬必得布洛芬 退烧止痛）；其他格式：品牌+品名（如：小米蓝牙耳机）。限制15字内，无标点。",
+  "prodDate": "生产日期。格式为 YYYY-MM-DD。如果看不清或没有印，填空字符串。",
+  "shelfLife": 数字，保质期天数。如果写着几个月或几年请换算成天，如果没有写填0,
+  "quantity": 数字，净含量或数量（如 500ml 填 500，12包填 12），如果没写填0,
+  "unit": "计量单位。如 毫升/克/片/包/瓶/袋。看不清填空字符串。"
+}`;
 
-            } else if (st.llmType === 'zhipu') {
-                // 智谱 GLM-4V
-                url = 'http://localhost:8080/zhipu/api/paas/v4/chat/completions';
-                headers['Authorization'] = `Bearer ${st.llmApiKey}`;
-                body = {
-                    model: "glm-4v",
-                    messages: [{
-                        role: "user", content: [
-                            { type: "image_url", image_url: { url: base64Image } },
-                            { type: "text", text: prompt }
-                        ]
-                    }],
-                    temperature: 0.1
-                };
-            } else {
-                // 阿里通义千问 VL
-                url = 'http://localhost:8080/dashscope/compatible-mode/v1/chat/completions';
-                headers['Authorization'] = `Bearer ${st.llmApiKey}`;
-                body = {
-                    model: "qwen-vl-plus",
-                    messages: [{
-                        role: "user", content: [
-                            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
-                            { type: "text", text: prompt }
-                        ]
-                    }],
-                    temperature: 0.1
-                };
+            const body = {
+                model: service.model,
+                messages: [{
+                    role: "user",
+                    content: [
+                        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } },
+                        { type: "text", text: prompt }
+                    ]
+                }],
+                temperature: 0.1,
+                max_tokens: 150
+            };
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            try {
+                const res = await fetch(service.url, {
+                    method: 'POST',
+                    headers: service.headers,
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                const data = await res.json();
+                if (data.error) throw new Error(data.error.message || '请求失败');
+
+                let text = data.choices[0].message.content.trim();
+
+                // ⭐ 去除可能包含的 markdown 格式，提取纯 JSON
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error('未返回有效JSON');
+
+                return JSON.parse(jsonMatch[0]);
+
+            } catch (e) {
+                clearTimeout(timeoutId);
+                if (e.name === 'AbortError') throw new Error('请求超时');
+                throw e;
             }
-
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(body)
-            });
-
-            const data = await res.json();
-            if (data.error) throw new Error(data.error.message || '大模型请求失败');
-
-            let answer = data.choices[0].message.content.trim();
-            return answer.replace(/[。！？，、\s]/g, '');
         }
-
+        
         async function runAiRecognition(dataUrl) {
             const apiKey = (S.settings.aiApiKey || '').trim();
             if (!apiKey) { toast(T('ai_no_key'), 3000); return null; }
@@ -8835,7 +8847,7 @@
                         if (files.length === 1) {
                             // 只有一张：走原本的单张逻辑
                             try {
-                                const dataUrl = await compressImage(files[0], 480, 0.6);
+                                const dataUrl = await compressImage(files[0], 384, 0.5);
                                 const result = await runHybridRecognition(dataUrl);
                                 UI.tab = 'items'; render();
                                 setTimeout(() => itemFormSheet(null, result || { photo: dataUrl }), 120);
