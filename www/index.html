@@ -1507,52 +1507,7 @@
                 transition: width .4s ease
             }
 
-        .scan-box {
-            position: relative;
-            border-radius: 16px;
-            overflow: hidden;
-            background: #000;
-            aspect-ratio: 3/4;
-            max-height: 52vh;
-            box-shadow: var(--shadow)
-        }
 
-            .scan-box video {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                display: block
-            }
-
-        .scan-frame {
-            position: absolute;
-            inset: 20% 12%;
-            border: 2px solid rgba(255,255,255,.9);
-            border-radius: 14px;
-            box-shadow: 0 0 0 999px rgba(0,0,0,.3)
-        }
-
-            .scan-frame::after {
-                content: "";
-                position: absolute;
-                left: 0;
-                right: 0;
-                top: 50%;
-                height: 2px;
-                background: var(--primary);
-                box-shadow: 0 0 8px var(--primary)
-            }
-
-        .scan-tip {
-            position: absolute;
-            bottom: 16px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            color: #fff;
-            font-size: 13px;
-            text-shadow: 0 1px 4px rgba(0,0,0,.7)
-        }
 
         .cat-row {
             display: flex;
@@ -3874,7 +3829,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3" /><path d="M16 4h3a1 1 0 0 1 1 1v3" /><path d="M20 16v3a1 1 0 0 1-1 1h-3" /><path d="M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M4 12h16" /></svg>
             </div>
             <div class="onboard-title">拍照识别 / 手动录入</div>
-            <div class="onboard-desc">无需扫码，拍包装盒即可本地文字识别（不联网免费），<br>或直接手动填写。<br>食材零食支持保质期智能匹配。</div>
+            <div class="onboard-desc">拍包装盒照片，由大模型自动识别名称、分类、保质期。<br>也可以直接手动填写。<br>食材零食支持保质期智能匹配。</div>
         </div>
 
         <div class="onboard-slide" data-idx="2">
@@ -4187,13 +4142,7 @@
                     if (!S.achievements[k]) S.achievements[k] = data.achievements[k];
                 });
             }
-            // 5. 条码缓存：当前优先
-            if (data.barcodeCache) {
-                Object.keys(data.barcodeCache).forEach(k => {
-                    if (!S.barcodeCache[k]) S.barcodeCache[k] = data.barcodeCache[k];
-                });
-            }
-            // 6. stats：数字取较大值，字符串/空值补缺
+            // 5. stats：数字取较大值，字符串/空值补缺
             if (data.stats) {
                 Object.keys(data.stats).forEach(k => {
                     const cur = S.stats[k];
@@ -4303,7 +4252,6 @@
         const ADD_ICONS = {
             image: `<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="22" height="16" rx="3"/><path d="M10 7l1.5-2h5L18 7"/><circle cx="14" cy="15" r="4"/><path d="M23 3v2M24 4h-2" stroke-width="1.4"/></svg>`,
             text: `<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h11l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M17 4v5h5"/><path d="M9 14h7M9 18h5"/></svg>`,
-            barcode: `<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v16M7 6v16M10 6v16M14 6v16M17 6v16M20 6v16M23 6v16" stroke-width="1.6"/></svg>`
         };
 
         const LANG = {
@@ -4322,9 +4270,8 @@
                 add_item: '添加物品', edit_item: '编辑物品', add_title: '添加物品',
                 add_hero_t: '图片识别', add_hero_d: '拍一张包装盒照片，AI 自动识别名称、分类、保质期',
                 add_mini_text: '文字添加', add_mini_text_d: '直接手动填写',
-                add_mini_barcode: '条码识别', add_mini_barcode_d: '扫商品条码',
                 add_via_manual: '手动填写',
-                name: '名称', name_ph: '例如：抽纸', barcode: '条码', barcode_ph: '扫码或手动输入',
+                name: '名称', name_ph: '例如：抽纸', barcode: '条码', barcode_ph: '输入或粘贴',
                 cat: '分类', loc: '存放位置', qty: '数量', unit: '单位', unit_ph: '选择单位', unit_none: '—',
                 price: '单价（¥）', min_qty: '低库存提醒（≤）', purchase: '购买日期',
                 prod: '生产日期', shelf: '保质期（天）', exp: '过期日期',
@@ -4336,9 +4283,8 @@
                 manage_cat: '分类管理', manage_loc: '我家布局',
                 export: '数据与分享', import: '导入数据', clear: '清空所有数据',
                 clear_confirm: '确定清空全部数据？不可恢复！', import_ok: '导入成功', import_fail: '导入失败：文件格式不正确',
-                scan_hint: '将条码对准取景框', scan_ph: '输入条码数字',
-                cam_denied: '无法访问相机，请在下方手动输入', cam_unsupported: '此浏览器不支持扫码，请手动输入',
-                scanning: '识别中…', saved: '已保存', deleted: '已删除',
+
+                saved: '已保存', deleted: '已删除',
                 alert_soon: '即将过期', alert_low: '库存不足', all_good: '一切正常，没有需要处理的提醒',
                 stat_overview: '总览', stat_expired: '过期物品', stat_soon: '临期物品', stat_noexp: '无过期日期',
                 stat_most_value: '最贵物品', no_data: '暂无数据', item_count: '{n} 件',
@@ -4348,10 +4294,7 @@
                 storage_ok: '数据保存在本机浏览器中', storage_session: '数据保存在本标签页中（关闭后丢失）', storage_memory: '数据只保存在内存中（刷新后丢失）',
                 add_cat: '新建一级分类', add_sub: '新建子分类', cat_name: '分类名称', loc_name: '位置名称',
                 custom: '自定义', need_name: '请填写名称', confirm: '确定',
-                local_hit: '本机条码库已识别', network_hit: '联网查询成功',
-                barcode_cache: '本机条码库', barcode_count: '已记 {n} 条', clear_cache: '清空本机条码库', clear_cache_confirm: '确定清空本机条码库？', clear_cache_done: '条码库已清空',
-                enable_net: '开启联网查询', net_off: '联网查询已关闭（推荐）', net_on: '联网查询已开启',
-                scan_help_title: '扫码使用说明', scan_help: '第一次扫某个商品时，请手动填写名称等信息。保存后会自动记住，下次扫同一个条码就能秒填。', scan_new: '扫到新条码',
+
                 checkin: '每日签到', checkin_today: '今日签到', checkin_done: '今日已签到', checkin_success: '签到成功',
                 checkin_points: '积分', checkin_streak: '连续签到 {n} 天', checkin_streak_zero: '还没开始签到',
                 checkin_next_bonus: '连签 {d} 天可额外 +{p} 分', checkin_all_done: '明天再来，保持连续',
@@ -4394,19 +4337,12 @@
                 fresh_quick: '只看食材零食', fresh_quick_off: '取消筛选', fresh_cat_hint: '食材零食（重点关注保质期）',
                 opened_tag: '已开封', opened_shelf_hint: '开封后 {n} 天',
                 focus_title: '重点关注', focus_sub: '食材零食 · 药品 · 电池 · 安全用品', focus_count: '{n} 件需要留意',
-                ai_api_key: 'AI 识别 API Key', ai_api_key_ph: '粘贴你的 Gemini API Key', ai_api_key_hint: '用于图片识别物品。可以在 Google AI Studio 免费申请',
-                ai_api_key_saved: 'API Key 已保存', ai_api_key_clear: '清空',
-                ai_recognizing: 'AI 正在识别…', ai_recognize_fail: 'AI 识别失败，请手动填写',
-                ai_no_key: '还没配置 API Key，先到「我的 → AI 识别」里设置', ai_recognize_result: 'AI 识别完成',
-                ai_help_title: '如何获取免费 API Key', ai_help_step1: '1. 打开 aistudio.google.com/app/apikey', ai_help_step2: '2. 用 Google 账号登录', ai_help_step3: '3. 点 "Create API Key"', ai_help_step4: '4. 复制粘贴到这里',
-                ai_help_note: '⚠️ 需要能访问 Google 的网络环境。每月有免费额度，个人用够。',
-                ai_error_http: '网络错误', ai_parse_fail: '解析失败',
                 photo_recog: '识别', warranty_short: '保修', focus_cats: '食材零食、药品、电池、安全用品',
                 drag_hint: '长按物品可拖动到其他房间', drag_started: '拖动中…放到目标房间', drag_moved: '已移动到「{n}」', drag_no_target: '没有放到任何房间',
                 opened_date_hint: '开封后 {d} 到期', match_opened_hint: '开封后约 {d} 天',
-                cam_need_https: '⚠️ 摄像头需要在 HTTPS 或 localhost 下才能使用。请手动输入条码，或把页面部署到 HTTPS 环境。',
-                scanner_unavailable: '扫码功能不可用，请手动输入条码', manual_first: '手动填写',
-                scan_alt_tip: '如果摄像头无法使用，可以直接在下方手动输入条码，或点「手动填写」按钮。',
+
+
+
                 reuse_title: '二次利用建议', reuse_none: '这件物品过期后较难再利用，建议安全丢弃。',
                 rebuy: '重新入库', rebuy_done: '已重新入库', rebuy_hint: '一键复购：复制一份新的，保质期从今天重新计算',
                 rebuy_title: '重新入库', rebuy_qty: '入库数量', rebuy_shelf_prefix: '保质期约 ', rebuy_shelf_suffix: '，从今天重新计算',
@@ -4457,9 +4393,6 @@
                 trash_title: '回收站', trash_empty: '回收站是空的', trash_count_hint: '共 {n} 件物品，30 天后自动永久删除', trash_restore_all: '全部恢复', trash_empty_all: '清空回收站', trash_days_left: '还剩 {n} 天',
                 trash_confirm_empty_title: '清空回收站', trash_confirm_empty_msg: '将永久删除回收站内所有物品？此操作不可恢复！',
                 trash_confirm_restore_title: '全部恢复', trash_confirm_restore_msg: '将回收站内所有物品全部恢复？',
-                ocr_loading_model: '首次下载中文识别模型（约 15MB），请稍候…', ocr_processing: '正在本地识别文字…', ocr_image_processing: '正在优化图像并识别…', ocr_failed: '识别失败：{msg}', ocr_extract_failed: '图片处理失败', ocr_original_text: '【OCR 识别原文】\n', ocr_baidu_text: '【百度 OCR 识别原文】\n',
-                lookup_network_query: '【联网查询】', lookup_scan_entry: '【扫码录入】', lookup_barcode_label: '条码：', lookup_first_scan_hint: '提示：这是第一次扫此条码，填写后会自动记住，下次秒填。', lookup_digit_barcode: '数字条码', lookup_other_barcode: '其他',
-                toast_network_lookup: '联网查询中…', toast_ocr_progress: '识别中 {p}%', toast_pdf_preview: '已生成 PDF 预览',
                 lookup_noloc_warning1: '另有 {n} 件同名物品 <b>暂时未归位</b>，建议一并归位。', lookup_noloc_warning2: '该物品已有 {n} 件，但 <b>暂时未归位</b>，建议先归位到具体位置。',
                 duplicate_found: '发现同款物品', duplicate_msg: '「{name}」在相同位置已有 {n} 件（共 {qty}{unit}）\n\n是否合并数量到已有物品中？', merge_qty: '合并数量', add_separately: '单独添加', merged: '已合并数量',
                 move_to_trash: '「{name}」将移入回收站，30 天后自动删除', moved_to_trash: '已移入回收站', batch_moved_trash: '已将 {n} 个移入回收站', restored: '已恢复', permanently_deleted: '已永久删除', permanently_delete_title: '永久删除', permanently_delete_msg: '「{name}」将被永久删除，无法恢复！', all_restored: '已全部恢复', trash_emptied: '已清空回收站',
@@ -4471,8 +4404,8 @@
                 status_expired: '已过期', status_soon: '临期', status_fresh: '正常', status_none: '无保质期',
                 share_qr_hint: '扫码查看物品清单', share_local_hint: '💡 提示：本地链接仅在同一设备访问。分享给家人请导出 PDF 或 CSV 发送。', export_pdf_share: '导出 PDF 发给家人',
                 onboard_welcome: '欢迎来到万物归序', onboard_welcome_desc: '给每件物品一个角落。<br>从此不再翻箱倒柜，不再买重复的东西。',
-                onboard_step1_title: '拍照识别，轻松录入', onboard_step1_desc: '无需扫码，拍包装盒即可本地文字识别（不联网免费），<br>或直接手动填写。<br>食材零食支持保质期智能匹配。',
-                add_local_hero_t: '拍照识别（本地）', add_local_hero_d: '拍包装盒 → 本地识别文字 → 自动填名称、规格、日期、单位',
+                onboard_step1_title: '拍照识别，轻松录入', onboard_step1_desc: '拍包装盒照片，由大模型自动识别名称、分类、保质期。<br>也可以直接手动填写。<br>食材零食支持保质期智能匹配。',
+
                 onboard_step2_title: '分类与位置', onboard_step2_desc: '物品可以归到分类和具体位置。<br>「储物」页按房间展开，点击右上角「整理」，<br>即可批量勾选物品并搬挪。',
                 onboard_step3_title: '临期提醒 + 数据安全', onboard_step3_desc: '保质期、保修自动提醒。<br>误删物品会自动进入「回收站」，30 天内随时可以恢复。',
                 onboard_next: '下一步', onboard_skip: '跳过', onboard_start: '开始使用',
@@ -4492,7 +4425,6 @@
                 add_item: 'Add item', edit_item: 'Edit item', add_title: 'Add item',
                 add_hero_t: 'Image Recognition', add_hero_d: 'Snap the package. AI recognizes name, category and shelf life.',
                 add_mini_text: 'Manual', add_mini_text_d: 'Fill in details',
-                add_mini_barcode: 'Barcode', add_mini_barcode_d: 'Scan the barcode',
                 add_via_manual: 'Manual',
                 name: 'Name', name_ph: 'e.g. Tissue', barcode: 'Barcode', barcode_ph: 'Scan or type',
                 cat: 'Category', loc: 'Location', qty: 'Qty', unit: 'Unit', unit_ph: 'Choose unit', unit_none: '—',
@@ -4506,9 +4438,7 @@
                 manage_cat: 'Categories', manage_loc: 'Home layout',
                 export: 'Data & Share', import: 'Import data', clear: 'Clear all data',
                 clear_confirm: 'Clear all data? Cannot be undone!', import_ok: 'Imported', import_fail: 'Import failed',
-                scan_hint: 'Align barcode in the frame', scan_ph: 'Type barcode',
-                cam_denied: 'Camera unavailable. Type below.', cam_unsupported: 'Scanning not supported. Type below.',
-                scanning: 'Scanning…', saved: 'Saved', deleted: 'Deleted',
+                saved: 'Saved', deleted: 'Deleted',
                 alert_soon: 'Expiring soon', alert_low: 'Low stock', all_good: 'All good, nothing to handle',
                 stat_overview: 'Overview', stat_expired: 'Expired', stat_soon: 'Expiring', stat_noexp: 'No expiry',
                 stat_most_value: 'Most valuable', no_data: 'No data', item_count: '{n} items',
@@ -4517,10 +4447,6 @@
                 storage_ok: 'Data saved in this browser', storage_session: 'Data saved in this tab (lost when closed)', storage_memory: 'Data only in memory (lost on refresh)',
                 add_cat: 'New top category', add_sub: 'New subcategory', cat_name: 'Category name', loc_name: 'Location name',
                 custom: 'Custom', need_name: 'Please enter a name', confirm: 'OK',
-                local_hit: 'Found in local barcode library', network_hit: 'Found online',
-                barcode_cache: 'Local barcode library', barcode_count: '{n} saved', clear_cache: 'Clear local barcode library', clear_cache_confirm: 'Clear local barcode library?', clear_cache_done: 'Barcode library cleared',
-                enable_net: 'Enable online lookup', net_off: 'Online lookup OFF (recommended)', net_on: 'Online lookup ON',
-                scan_help_title: 'How to scan', scan_help: 'First time scanning an item, please fill in the name manually.', scan_new: 'New barcode',
                 checkin: 'Daily check-in', checkin_today: 'Check in', checkin_done: 'Checked in today', checkin_success: 'Check-in success',
                 checkin_points: 'Points', checkin_streak: '{n}-day streak', checkin_streak_zero: 'No streak yet',
                 checkin_next_bonus: '{d}-day streak: +{p} bonus', checkin_all_done: 'Come back tomorrow',
@@ -4561,19 +4487,9 @@
                 fresh_quick: 'Food & snacks only', fresh_quick_off: 'Clear filter', fresh_cat_hint: 'Food & snacks (focus on expiry)',
                 opened_tag: 'Opened', opened_shelf_hint: '{n} days after opening',
                 focus_title: 'Focus', focus_sub: 'Food, medicine, batteries, safety', focus_count: '{n} need attention',
-                ai_api_key: 'AI API Key', ai_api_key_ph: 'Paste your Gemini API Key', ai_api_key_hint: 'For photo recognition. Get one free at Google AI Studio',
-                ai_api_key_saved: 'API Key saved', ai_api_key_clear: 'Clear',
-                ai_recognizing: 'AI is recognizing…', ai_recognize_fail: 'AI failed. Please fill in manually',
-                ai_no_key: 'No API Key yet. Go to "Me → AI" to set up', ai_recognize_result: 'AI done',
-                ai_help_title: 'How to get a free API Key', ai_help_step1: '1. Open aistudio.google.com/app/apikey', ai_help_step2: '2. Sign in with Google', ai_help_step3: '3. Click "Create API Key"', ai_help_step4: '4. Paste it here',
-                ai_help_note: '⚠️ Requires Google access. Free tier is enough for personal use.',
-                ai_error_http: 'Network error', ai_parse_fail: 'Parse failed',
                 photo_recog: 'Recognize', warranty_short: 'Warranty', focus_cats: 'Food, medicine, batteries, safety',
                 drag_hint: 'Long-press an item to drag it to another room', drag_started: 'Dragging… drop on a room', drag_moved: 'Moved to "{n}"', drag_no_target: 'Not dropped on any room',
                 opened_date_hint: 'After opening, expires on {d}', match_opened_hint: 'After opening, ~{d} days',
-                cam_need_https: '⚠️ Camera requires HTTPS or localhost. Please type the barcode manually or deploy over HTTPS.',
-                scanner_unavailable: 'Scanner unavailable. Please type the barcode.', manual_first: 'Manual',
-                scan_alt_tip: 'If the camera does not work, type the barcode below or tap Manual.',
                 reuse_title: 'Reuse suggestion', reuse_none: 'This item is hard to reuse once expired. Please dispose safely.',
                 rebuy: 'Restock', rebuy_done: 'Restocked', rebuy_hint: 'One-tap restock: copy as new item, expiry refreshed from today',
                 rebuy_title: 'Restock', rebuy_qty: 'Quantity', rebuy_shelf_prefix: 'Shelf life approx. ', rebuy_shelf_suffix: ', recalculated from today',
@@ -4623,9 +4539,6 @@
                 trash_title: 'Trash', trash_empty: 'Trash is empty', trash_count_hint: '{n} items, auto-deleted after 30 days', trash_restore_all: 'Restore All', trash_empty_all: 'Empty Trash', trash_days_left: '{n} days left',
                 trash_confirm_empty_title: 'Empty Trash', trash_confirm_empty_msg: 'Permanently delete all items in trash? This cannot be undone!',
                 trash_confirm_restore_title: 'Restore All', trash_confirm_restore_msg: 'Restore all items from trash?',
-                ocr_loading_model: 'Downloading model (15MB)...', ocr_processing: 'Recognizing text...', ocr_image_processing: 'Processing image...', ocr_failed: 'Recognition failed: {msg}', ocr_extract_failed: 'Image processing failed', ocr_original_text: '【OCR Raw Text】\n', ocr_baidu_text: '【Baidu OCR Text】\n',
-                lookup_network_query: '【Online Lookup】', lookup_scan_entry: '【Scan Entry】', lookup_barcode_label: 'Barcode: ', lookup_first_scan_hint: 'Tip: First scan of this barcode. Info will be saved for next time.', lookup_digit_barcode: 'Digit barcode', lookup_other_barcode: 'Other',
-                toast_network_lookup: 'Looking up online…', toast_ocr_progress: 'Recognizing {p}%', toast_pdf_preview: 'PDF preview generated',
                 lookup_noloc_warning1: '{n} more items of this name are <b>not put away</b>.', lookup_noloc_warning2: 'You have {n} of this item, but they are <b>not put away</b>.',
                 duplicate_found: 'Similar Item Found', duplicate_msg: '"{name}" already exists at this location ({n} items, {qty}{unit}).\n\nMerge quantities?', merge_qty: 'Merge', add_separately: 'Add Separately', merged: 'Merged',
                 move_to_trash: '"{name}" will be moved to trash and deleted after 30 days', moved_to_trash: 'Moved to trash', batch_moved_trash: 'Moved {n} items to trash', restored: 'Restored', permanently_deleted: 'Permanently deleted', permanently_delete_title: 'Permanently Delete', permanently_delete_msg: '"{name}" will be permanently deleted. Cannot be undone!', all_restored: 'All restored', trash_emptied: 'Trash emptied',
@@ -4637,8 +4550,8 @@
                 status_expired: 'Expired', status_soon: 'Expiring', status_fresh: 'Fresh', status_none: 'No shelf life',
                 share_qr_hint: 'Scan to view item list', share_local_hint: '💡 Note: Local link works only on this device. Export PDF/CSV to share.', export_pdf_share: 'Export PDF for Family',
                 onboard_welcome: 'Welcome to SnapBox', onboard_welcome_desc: 'A home for everything.<br>No more rummaging, no more duplicate purchases.',
-                onboard_step1_title: 'Smart Photo Recognition', onboard_step1_desc: 'No scanning needed — just snap a photo for local OCR (free & offline),<br>or fill in manually.<br>Smart expiry matching for food & snacks.',
-                add_local_hero_t: 'Photo Recognition (Local)', add_local_hero_d: 'Snap package → Local OCR → Auto-fill name, specs, date, unit',
+                onboard_step1_title: 'Smart Photo Recognition', onboard_step1_desc: 'Snap a photo and let the LLM auto-fill name, category and shelf life.<br>Or fill in manually.<br>Smart expiry matching for food & snacks.',
+
                 onboard_step2_title: 'Categories & Locations', onboard_step2_desc: 'Organize items by category and specific location.<br>Zones view shows rooms. Tap "Organize" top-right<br>to batch-select and move items.',
                 onboard_step3_title: 'Expiry Alerts + Safe Data', onboard_step3_desc: 'Automatic shelf life & warranty reminders.<br>Deleted items go to Trash — recoverable within 30 days.',
                 onboard_next: 'Next', onboard_skip: 'Skip', onboard_start: 'Get Started',
@@ -5567,18 +5480,19 @@
             });
             return {
                 v: 9, items: [], categories: cats, locations: defaultLocations(),
-                barcodeCache: {}, achievements: {},
+                achievements: {},
                 stats: {
                     points: 0, streak: 0, lastCheckin: '', totalCheckins: 0,
                     totalAdded: 0, totalScan: 0, totalDiscardExpired: 0, streakMax: 0,
                     customCatCreated: 0, customLocCreated: 0, totalDragMoved: 0,
                     luxuryAdded: 0, perfectItem: 0, nightAdded: 0, allCatsUsed: 0, emptiedAll: 0, sameDayBoth: 0,
-                    totalRebuy: 0, totalLookup: 0, lastRecordDate: '',
-                    lastAlertCount: 0
+                    totalRebuy: 0, totalLookup: 0, lastRecordDate: '', lastAlertCount: 0,
+                    checkinDates: []
                 },
                 settings: {
-                    themeColor: '#4A9D7F', dark: false, lang: 'zh', warnDays: 7, warrantyWarnDays: 30, enableNet: false,
-                    remindTime: '22:00', layoutOnboarded: false, onboarded: false, aiApiKey: '', baiduApiKey: '', baiduSecretKey: '',
+                    themeColor: '#4A9D7F', dark: false, lang: 'zh', warnDays: 7, warrantyWarnDays: 30,
+                    remindTime: '22:00', layoutOnboarded: false, onboarded: false,
+                    llmApiKey: '', llmType: 'hunyuan',
                     registeredAt: 0, v9Migrated: false
                 }
             };
@@ -5589,18 +5503,21 @@
             S.settings = Object.assign(defaultData().settings, S.settings || {});
             if (!Array.isArray(S.categories) || !S.categories.length) S.categories = defaultData().categories;
             if (!Array.isArray(S.locations) || !S.locations.length) S.locations = defaultData().locations;
-            if (!S.barcodeCache || typeof S.barcodeCache !== 'object') S.barcodeCache = {};
             if (!S.achievements || typeof S.achievements !== 'object') S.achievements = {};
             S.stats = Object.assign(defaultData().stats, S.stats || {});
-            if (!S.settings.registeredAt) {
-                S.settings.registeredAt = Date.now();
-            }
-            // 清理 30 天前的回收站物品
+            if (!Array.isArray(S.stats.checkinDates)) S.stats.checkinDates = [];
+            if (!S.settings.registeredAt) S.settings.registeredAt = Date.now();
+
+            // 清理 30 天前的回收站物品（同时删孤儿图片）
             const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-            const beforeLen = S.items.length;
+            const removed = S.items.filter(i => i.deletedAt && i.deletedAt <= thirtyDaysAgo);
             S.items = S.items.filter(i => !i.deletedAt || i.deletedAt > thirtyDaysAgo);
-            if (S.items.length !== beforeLen) save();
-            /* ★ 数据迁移：把旧的「冰箱」改名为「冰箱冷藏区」，并补充「冰箱冷冻区」 */
+            if (removed.length) {
+                removed.forEach(i => { if (i.photo) deletePhotoIfOrphan(i.photo); });
+                save();
+            }
+
+            /* 数据迁移：旧「冰箱」改名为「冰箱冷藏区」，补「冰箱冷冻区」 */
             if (!S.settings.v9Migrated) {
                 let changed = false;
                 S.locations.forEach(l => {
@@ -5610,7 +5527,6 @@
                         changed = true;
                     }
                 });
-                // 为每个「厨房」房间检查是否有冷冻区
                 const kitchens = S.locations.filter(l => !l.parentId && (((l.name && l.name.zh) || '').indexOf('厨房') >= 0 || ((l.name && l.name.en) || '') === 'Kitchen'));
                 kitchens.forEach(k => {
                     const hasFreezer = S.locations.some(l => l.parentId === k.id && (((l.name && l.name.zh) || '').indexOf('冷冻') >= 0 || ((l.name && l.name.en) || '').indexOf('frozen') >= 0));
@@ -5783,6 +5699,9 @@
             if (cs.newStreak > (S.stats.streakMax || 0)) S.stats.streakMax = cs.newStreak;
             S.stats.lastCheckin = cs.today;
             S.stats.totalCheckins = (S.stats.totalCheckins || 0) + 1;
+            if (!Array.isArray(S.stats.checkinDates)) S.stats.checkinDates = [];
+            S.stats.checkinDates.push(cs.today);
+            if (S.stats.checkinDates.length > 90) S.stats.checkinDates = S.stats.checkinDates.slice(-90);
             if (S.stats.lastRecordDate === cs.today) S.stats.sameDayBoth = 1;
             const extra = cs.bonus > 0 ? '（连续' + cs.newStreak + '天 +' + cs.bonus + '）' : '';
             toast('✓ ' + T('checkin_success') + ' +' + cs.reward + extra, 2600);
@@ -5923,25 +5842,31 @@
             const endTs = end.getTime() + 86400000 - 1;
             const added = S.items.filter(i => (i.createdAt || 0) >= startTs && (i.createdAt || 0) <= endTs).length;
 
-            // ⭐ 改造：拆分为已过期和临期
-            const expired = S.items.filter(i => {
+            const expired = activeItems().filter(i => {
                 const d = effectiveExpDate(i);
                 if (!d) return false;
                 const t = new Date(d + 'T00:00:00').getTime();
                 const now = new Date(todayStr() + 'T00:00:00').getTime();
-                return t >= startTs && t <= endTs && t < now; // 时间落在本周且已经过去
+                return t >= startTs && t <= endTs && t < now;
             }).length;
 
-            const soon = S.items.filter(i => {
+            const soon = activeItems().filter(i => {
                 const d = effectiveExpDate(i);
                 if (!d) return false;
                 const t = new Date(d + 'T00:00:00').getTime();
                 const now = new Date(todayStr() + 'T00:00:00').getTime();
-                return t >= startTs && t <= endTs && t >= now; // 时间落在本周且还没过去
+                return t >= startTs && t <= endTs && t >= now;
             }).length;
 
-            const discarded = (idx === 0) ? (S.stats.totalDiscardExpired || 0) : 0;
-            const checkinCount = (idx === 0) ? (S.stats.streak || 0) : 0;
+            const discarded = S.items.filter(i =>
+                i.discardedAt && i.discardedAt >= startTs && i.discardedAt <= endTs
+            ).length;
+
+            const checkinCount = (S.stats.checkinDates || []).filter(d => {
+                const t = new Date(d + 'T00:00:00').getTime();
+                return t >= startTs && t <= endTs;
+            }).length;
+
             const fromStr = (start.getMonth() + 1) + '月' + start.getDate() + '日';
             const toStr = (end.getMonth() + 1) + '月' + end.getDate() + '日';
             return { before: false, added, expired, soon, discarded, checkinCount, fromStr, toStr };
@@ -5954,7 +5879,7 @@
         }
         function recentActivities() {
             const events = [];
-            S.items.forEach(it => {
+            activeItems().forEach(it => {
                 if (it.lastTakenAt) events.push({ type: 'take', item: it, time: it.lastTakenAt });
                 if (it.lastPutAt) events.push({ type: 'put', item: it, time: it.lastPutAt });
             });
@@ -6090,12 +6015,10 @@
             v.style.paddingBottom = '130px';
             if (UI.tab === 'home') v.innerHTML = viewHome();
             else if (UI.tab === 'items') { v.innerHTML = viewItems(); bindItems(); }
-            else if (UI.tab === 'scan') { v.innerHTML = viewScan(); startScan(); }
             else if (UI.tab === 'zones') { v.innerHTML = viewZones(); bindZones(); }
             else if (UI.tab === 'stats') v.innerHTML = viewStats();
             else if (UI.tab === 'alerts') v.innerHTML = viewAlerts();
             else v.innerHTML = viewMe();
-            if (UI.tab !== 'scan') stopScan();
             renderOrganizeBar();
             if (UI.tab === 'me') {
                 const el = document.getElementById('storageUsage');
@@ -6763,7 +6686,6 @@
         }
         function viewMe() {
             const st = S.settings;
-            const cacheCount = Object.keys(S.barcodeCache || {}).length;
             let h = '';
             if (!Store.persistent) {
                 const warn = Store.mode === 'memory' ? T('storage_warn_memory') : T('storage_warn_session');
@@ -6774,6 +6696,18 @@
                 '<div class="small muted" id="storageUsage">存储用量计算中…</div>' +
                 '</div>';
             h += achievementsEntryHtml();
+
+            // ⭐ 数据统计入口
+            h += '<div class="card" style="padding:0">' +
+                '<div class="row" style="padding:14px 16px;cursor:pointer" data-act="gotoStats">' +
+                '<div style="display:flex;align-items:center;gap:10px">' +
+                '<div style="width:34px;height:34px;border-radius:9px;background:var(--primary-l);color:var(--primary);display:flex;align-items:center;justify-content:center">' + ICON.chart + '</div>' +
+                '<div><div style="font-size:14.5px;font-weight:500">数据统计</div>' +
+                '<div class="small muted" style="margin-top:1px">分类 / 位置 / 过期分布</div></div>' +
+                '</div>' +
+                '<div style="color:var(--text-3)">›</div>' +
+                '</div></div>';
+
             h += '<div class="card" style="padding:0">' +
                 '<div class="row" style="padding:14px 16px;cursor:pointer" data-act="openLayoutManage">' +
                 '<div style="display:flex;align-items:center;gap:10px">' +
@@ -6807,7 +6741,7 @@
             h += '<div class="row mt14"><div>' + T('show_onboard') + '</div><button class="btn" style="padding:8px 14px;font-size:13px" data-act="showOnboardAgain">›</button></div>';
             h += '</div>';
             h += '<div class="sec">大模型视觉 API（强烈推荐）</div><div class="card">';
-            h += '<div class="small muted" style="margin-bottom:10px">大模型懂常识，能彻底解决“圆盘认成耳机”的错误。你可以申请腾讯混元、智谱 GLM-4V 或 阿里通义千问 VL（都是免费的，只需一个 API Key）。</div>';
+            h += '<div class="small muted" style="margin-bottom:10px">大模型懂常识，能彻底解决“圆盘认成耳机”的错误。可申请腾讯混元、智谱 GLM-4V 或 阿里通义千问 VL（都是免费的，只需一个 API Key）。</div>';
             h += '<div class="field"><label>API Key</label><input class="api-key-input" id="llmApiKeyInput" type="text" value="' + esc(st.llmApiKey || '') + '" placeholder="粘贴你的 API Key" autocomplete="off"></div>';
             h += '<div class="field"><label>服务商</label><select id="llmTypeInput" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ccc"><option value="hunyuan" ' + (st.llmType === 'hunyuan' ? 'selected' : '') + '>腾讯混元 (hunyuan-vision)</option><option value="zhipu" ' + (st.llmType === 'zhipu' ? 'selected' : '') + '>智谱 GLM-4V</option><option value="dashscope" ' + (st.llmType === 'dashscope' ? 'selected' : '') + '>阿里通义千问 VL</option></select></div>';
             h += '<button class="btn primary block" data-act="saveLlmKey">' + T('save') + '</button>';
@@ -6925,7 +6859,7 @@
                 '<div class="hero-ico">' + ADD_ICONS.image + '</div>' +
                 '<div class="hero-txt">' +
                 '<div class="hero-t">智能拍照识别</div>' +
-                '<div class="hero-d">已配置百度 API 时优先使用云端高精度识别，无网络时自动降级本地识别</div>' +
+                '<div class="hero-d">拍包装盒照片，由大模型自动识别名称、分类、保质期</div>' +
                 '</div>' +
                 '<svg class="hero-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' +
                 '</div>';
@@ -6939,34 +6873,7 @@
             h += '</div>';
             openSheet(h);
         }
-        function viewScan() {
-            const supported = !!navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function';
-            const cacheCount = Object.keys(S.barcodeCache || {}).length;
-            const secure = window.isSecureContext === true;
-            return '' +
-                '<div class="scan-box">' +
-                '<video id="scanVideo" playsinline muted autoplay></video>' +
-                '<div class="scan-frame" id="scanFrame" style="display:none"></div>' +
-                '<div class="scan-tip" id="scanTip">' + (supported ? (secure ? T('scan_hint') : '') : T('cam_unsupported')) + '</div>' +
-                '</div>' +
-                '<div class="card" style="margin-top:14px">' +
-                '<div class="small muted" id="scanStatus">' + (supported && secure ? T('scan_hint') : (secure ? T('cam_unsupported') : T('cam_need_https'))) + '</div>' +
-                '<div style="display:flex;gap:10px;margin-top:12px">' +
-                '<input id="manualCode" inputmode="numeric" placeholder="' + T('scan_ph') + '" style="flex:1;background:var(--card-2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:15px;color:var(--text);outline:none">' +
-                '<button class="btn primary" data-act="manualSubmit">' + T('confirm') + '</button>' +
-                '</div>' +
-                '<div class="small muted" style="margin-top:10px">' + T('barcode_count', { n: cacheCount }) + '</div>' +
-                '<div style="display:flex;gap:8px;margin-top:12px">' +
-                '<button class="btn" style="flex:1" data-act="pickAdd" data-mode="manual">' + T('add_via_manual') + '</button>' +
-                '<button class="btn" style="flex:1" data-act="pickAdd" data-mode="ai">' + T('photo_recog') + '</button>' +
-                '</div>' +
-                '</div>' +
-                '<div class="notice" style="margin-top:14px">' +
-                '<b>' + T('scan_help_title') + '</b><br>' + T('scan_help') +
-                '</div>' +
-                (secure ? '' : '<div class="notice warn" style="margin-top:10px">' + T('cam_need_https') + '</div>') +
-                '<div class="notice" style="margin-top:10px">' + T('scan_alt_tip') + '</div>';
-        }
+
         function openSheet(html) { $('#sheet').innerHTML = html; $('#mask').classList.remove('hidden'); $('#sheet').scrollTop = 0; }
         // ========= 批量识别队列引擎 =========
         window.__batchPhotoQueue = [];
@@ -7001,9 +6908,6 @@
         function closeSheet() {
             $('#mask').classList.add('hidden');
             $('#sheet').innerHTML = '';
-            if (UI.tab === 'scan') setTimeout(startScan, 120);
-
-            // ⭐ 核心：关闭表单时，自动弹出下一张待识别的图片
             triggerNextBatchIfAny();
         }
         $('#mask').addEventListener('click', e => { if (e.target.id === 'mask') closeSheet(); });
@@ -7112,9 +7016,7 @@
             const isEdit = !!item;
             const hitType = pf._hit;
             let hitBanner = '';
-            if (hitType === 'local') hitBanner = '<div class="notice" style="margin-bottom:14px">' + T('local_hit') + '<span class="badge-ok">✓</span></div>';
-            else if (hitType === 'network') hitBanner = '<div class="notice" style="margin-bottom:14px">' + T('network_hit') + '<span class="badge-info">↻</span></div>';
-            else if (hitType === 'ai') hitBanner = '<div class="notice" style="margin-bottom:14px;background:var(--warn-l);color:var(--warn);font-weight:500">识别完成，请核对信息</div>';
+            if (hitType === 'ai') hitBanner = '<div class="notice" style="margin-bottom:14px;background:var(--warn-l);color:var(--warn);font-weight:500">识别完成，请核对信息</div>';
             const curLocId = g('locId');
             const curLocText = curLocId ? getLocFullPath(curLocId) : T('unloc');
             const locEmptyCls = curLocId ? '' : ' empty';
@@ -7521,11 +7423,12 @@
         function renderShareResults(q) {
             const el = document.getElementById('shareResults');
             if (!el) return;
-            if (!S.items.length) {
+            const live = activeItems();
+            if (!live.length) {
                 el.innerHTML = '<div class="empty">' + ICON.box + '<div>' + T('share_empty') + '</div></div>';
                 return;
             }
-            let items = q.trim() ? fuzzySearch(S.items, q) : S.items;
+            let items = q.trim() ? fuzzySearch(live, q) : live;
             if (!items.length) {
                 el.innerHTML = '<div class="empty">' + ICON.search + '<div>' + T('share_not_found') + '</div></div>';
                 return;
@@ -7550,238 +7453,9 @@
             });
             el.innerHTML = h;
         }
-        let scanStream = null, scanRAF = null, scanDetector = null, scanning = false;
-        let zxingReader = null, scanCanvas = null, scanCtx = null, lastDecodeTime = 0;
-        async function startScan() {
-            if (scanning) return;
-            if (UI.tab !== 'scan') return;
-            const video = $('#scanVideo');
-            const statusEl = $('#scanStatus');
-            const frameEl = $('#scanFrame');
-            const tipEl = $('#scanTip');
-            if (!video) return;
-            const isSecure = window.isSecureContext === true;
-            if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-                if (statusEl) statusEl.innerHTML = '<span style="color:var(--warn);font-weight:600">' + T('cam_unsupported') + '</span>';
-                if (tipEl) tipEl.textContent = T('cam_unsupported');
-                return;
-            }
-            if (!isSecure) {
-                if (statusEl) statusEl.innerHTML = '<span style="color:var(--warn);font-weight:600">' + T('cam_need_https') + '</span>';
-                if (tipEl) tipEl.textContent = '';
-                if (frameEl) frameEl.style.display = 'none';
-                return;
-            }
-            try {
-                scanStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
-                });
-            } catch (e) {
-                if (statusEl) statusEl.textContent = T('cam_denied');
-                if (tipEl) tipEl.textContent = '';
-                return;
-            }
-            video.srcObject = scanStream;
-            try { await video.play(); } catch (e) { }
-            await new Promise(res => {
-                if (video.readyState >= 2 && video.videoWidth > 0) return res();
-                const t = setTimeout(res, 2000);
-                const done = () => { clearTimeout(t); res(); };
-                video.onloadedmetadata = done;
-                video.oncanplay = done;
-            });
-            if (frameEl) frameEl.style.display = 'block';
-            scanning = true;
-            if (statusEl) statusEl.textContent = T('scanning');
-            if (tipEl) tipEl.textContent = T('scan_hint');
-            scanDetector = null;
-            if (zxingReader) { try { zxingReader.reset(); } catch (e) { } zxingReader = null; }
-            if ('BarcodeDetector' in window) {
-                try {
-                    const fmts = await BarcodeDetector.getSupportedFormats();
-                    const want = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf', 'qr_code', 'codabar'];
-                    const use = want.filter(f => fmts.indexOf(f) >= 0);
-                    scanDetector = use.length ? new BarcodeDetector({ formats: use }) : new BarcodeDetector();
-                } catch (e) { scanDetector = null; }
-            }
-            if (!scanDetector && typeof ZXing !== 'undefined') {
-                try {
-                    const hints = new Map();
-                    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-                        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
-                        ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
-                        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
-                        ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.QR_CODE, ZXing.BarcodeFormat.CODABAR
-                    ]);
-                    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-                    zxingReader = new ZXing.BrowserMultiFormatReader(hints);
-                } catch (e) { zxingReader = null; }
-            }
-            if (!scanDetector && !zxingReader) {
-                if (statusEl) statusEl.textContent = T('scanner_unavailable');
-                return;
-            }
-            scanCanvas = document.createElement('canvas');
-            scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
-            lastDecodeTime = 0;
-            const tick = async () => {
-                if (!scanning) return;
-                if (!video.isConnected) { scanning = false; return; }
-                if (video.readyState < 2 || !video.videoWidth) { scanRAF = requestAnimationFrame(tick); return; }
-                if (scanDetector) {
-                    try {
-                        const codes = await scanDetector.detect(video);
-                        if (codes && codes.length && codes[0].rawValue) { onScanned(String(codes[0].rawValue)); return; }
-                    } catch (e) { }
-                }
-                if (zxingReader) {
-                    const now = performance.now();
-                    if (now - lastDecodeTime > 200) {
-                        lastDecodeTime = now;
-                        if (scanCanvas.width !== video.videoWidth) {
-                            scanCanvas.width = video.videoWidth;
-                            scanCanvas.height = video.videoHeight;
-                        }
-                        try {
-                            scanCtx.drawImage(video, 0, 0, scanCanvas.width, scanCanvas.height);
-                            const r = zxingReader.decodeFromCanvas(scanCanvas);
-                            if (r) { const txt = r.getText(); if (txt) { onScanned(txt); return; } }
-                        } catch (e) { }
-                    }
-                }
-                scanRAF = requestAnimationFrame(tick);
-            };
-            tick();
-        }
-        function stopScan() {
-            scanning = false;
-            if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
-            if (zxingReader) { try { zxingReader.reset(); } catch (e) { } zxingReader = null; }
-            if (scanStream) { scanStream.getTracks().forEach(tr => tr.stop()); scanStream = null; }
-            const v = $('#scanVideo'); if (v) v.srcObject = null;
-            scanCanvas = null; scanCtx = null; lastDecodeTime = 0;
-        }
-        function detectBarcodeInfo(code) {
-            const digits = String(code).replace(/\D/g, '');
-            const info = { type: '', region: '' };
-            if (digits.length === 13) info.type = 'EAN-13';
-            else if (digits.length === 12) info.type = 'UPC-A';
-            else if (digits.length === 8) info.type = 'EAN-8';
-            else if (digits.length > 0) info.type = T('lookup_digit_barcode');
-            else info.type = T('lookup_other_barcode');
-            if (digits.length >= 3) {
-                const p = parseInt(digits.slice(0, 3), 10);
-                if (p >= 690 && p <= 699) info.region = '中国大陆';
-                else if (p >= 0 && p <= 139) info.region = '美国/加拿大';
-                else if (p >= 300 && p <= 379) info.region = '法国';
-                else if (p >= 400 && p <= 440) info.region = '德国';
-                else if (p >= 450 && p <= 459) info.region = '日本';
-                else if (p === 471) info.region = '中国台湾';
-                else if (p === 489) info.region = '中国香港';
-                else if (p === 958) info.region = '中国澳门';
-                else if (p === 880) info.region = '韩国';
-                else if (p === 93) info.region = '澳大利亚';
-                else if (p === 94) info.region = '新西兰';
-                else if (p === 955) info.region = '马来西亚';
-            }
-            return info;
-        }
-        async function lookupNetwork(code) {
-            const sources = [
-                { name: 'Open Food Facts', url: 'https://world.openfoodfacts.org/api/v2/product/' },
-                { name: 'Open Beauty Facts', url: 'https://world.openbeautyfacts.org/api/v2/product/' },
-                { name: 'Open Products Facts', url: 'https://world.openproductsfacts.org/api/v2/product/' }
-            ];
-            const fields = 'product_name,product_name_zh,generic_name,brands,categories_tags,quantity';
-            for (const src of sources) {
-                try {
-                    const ctrl = new AbortController();
-                    const tm = setTimeout(() => ctrl.abort(), 4000);
-                    const url = src.url + encodeURIComponent(code) + '.json?fields=' + fields;
-                    const r = await fetch(url, { signal: ctrl.signal });
-                    clearTimeout(tm);
-                    if (!r.ok) continue;
-                    const j = await r.json();
-                    if (j && j.status === 1 && j.product) {
-                        const p = j.product;
-                        const name = String(p.product_name_zh || p.product_name || p.generic_name || '').trim();
-                        const brand = String(p.brands || '').split(',')[0].trim();
-                        const qty = String(p.quantity || '').trim();
-                        const tags = (p.categories_tags || []).join(' ').toLowerCase();
-                        let catId = '';
-                        if (/snack|biscuit|chocolate|candy|chip|crisp/.test(tags)) catId = 'c_food_snack';
-                        else if (/beverage|drink|water|juice|soda|coffee|tea/.test(tags)) catId = 'c_food_drink';
-                        else if (/condiment|sauce|spice|oil|vinegar/.test(tags)) catId = 'c_food_season';
-                        else if (/dairy|milk|yogurt|cheese/.test(tags)) catId = 'c_fresh_dairy';
-                        else if (/frozen/.test(tags)) catId = 'c_fresh_cold';
-                        else if (/canned/.test(tags)) catId = 'c_food_can';
-                        else if (/cosmetic|beauty|shampoo|skin|lotion/.test(tags)) catId = 'c_beauty_skin';
-                        else if (/food/.test(tags)) catId = 'c_food';
-                        if (name || brand) {
-                            const notes = ['【联网查询】', '条码：' + code];
-                            if (brand) notes.push('品牌：' + brand);
-                            if (qty) notes.push('规格：' + qty);
-                            notes.push('来源：' + src.name);
-                            return { name, brand, qty, catId, note: notes.join('\n') };
-                        }
-                    }
-                } catch (e) { }
-            }
-            return null;
-        }
-        async function onScanned(code) {
-            if (!code) return;
-            stopScan();
-            if (navigator.vibrate) { try { navigator.vibrate(55); } catch (e) { } }
-            S.stats.totalScan = (S.stats.totalScan || 0) + 1;
-            const localInfo = detectBarcodeInfo(code);
-            const prefill = { barcode: code };
-            const cached = S.barcodeCache && S.barcodeCache[code];
-            if (cached && cached.name) {
-                prefill.name = cached.name;
-                prefill.catId = cached.catId || '';
-                prefill.unit = cached.unit || '';
-                prefill.price = cached.price || '';
-                prefill._hit = 'local';
-                toast('✓ ' + T('local_hit') + '：' + cached.name);
-            } else {
-                let netResult = null;
-                if (S.settings.enableNet) {
-                    toast(T('toast_network_lookup'), 3500);
-                    netResult = await lookupNetwork(code);
-                }
-                if (netResult) {
-                    prefill.name = netResult.name;
-                    prefill.catId = netResult.catId;
-                    // ⭐ 从 "12包"/"500ml"/"12 x 30g" 里解析真实数量和单位
-                    const spec = String(netResult.qty || '').trim();
-                    const countM = spec.match(/^(\d+)\s*(包|盒|瓶|袋|罐|个|支|条|件|卷|片|块)/);
-                    if (countM) {
-                        // "12包" → qty=12, unit=包
-                        prefill.qty = parseInt(countM[1], 10) || 1;
-                        prefill.unit = countM[2];
-                    } else {
-                        // "500ml" / "12 x 30g" / 空 → qty=1，单位靠名称猜
-                        prefill.qty = 1;
-                        prefill.unit = guessUnit(netResult.name) || '件';
-                    }
-                    prefill.note = netResult.note;                    // 规格已在 note 里
-                    prefill._hit = 'network';
-                    toast('✓ ' + T('network_hit'));
-                } else {
-                    const notes = ['【扫码录入】', '条码：' + code];
-                    if (localInfo.type) notes.push('类型：' + localInfo.type);
-                    if (localInfo.region) notes.push('地区：' + localInfo.region);
-                    notes.push('提示：这是第一次扫此条码，填写后会自动记住，下次秒填。');
-                    prefill.note = notes.join('\n');
-                    toast(T('scan_new') + '：' + code);
-                }
-            }
-            save(); checkAchievements();
-            UI.tab = 'items';
-            render();
-            itemFormSheet(null, prefill);
-        }
+
+
+
 
         // ⭐ 压缩相机返回的 Base64 图片
         function compressDataUrl(dataUrl, maxW = 800, quality = 0.6) {
@@ -7822,68 +7496,10 @@
                 fr.readAsDataURL(file);
             });
         }
-        // ⭐ 新增：把相机返回的 Base64 图片进行缩放和压缩
-        function compressDataUrl(dataUrl, maxW = 800, quality = 0.6) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = () => {
-                    let w = img.width, h = img.height;
-                    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
-                    const canvas = document.createElement('canvas');
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.onerror = reject;
-                img.src = dataUrl;
-            });
-        }
-        async function callGeminiVision(apiKey, imageDataUrl) {
-            const base64 = imageDataUrl.split(',')[1];
-            const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + encodeURIComponent(apiKey);
-            const prompt = '这是一张物品的照片。请识别这是什么物品，并返回严格 JSON（不要任何其他文字、不要 markdown 代码块）：' +
-                '{' +
-                '"name":"物品的中文名称（尽量包含品牌名），限制15字内，无标点",' +
-                '"category":"从这些里选一个最接近的：食品/生鲜/药品/日化/美妆/厨具/数码/服饰/文具/家居/母婴/文件/安全/其他",' +
-                '"quantity":数字，库存件数。⚠️ 几乎总是填 1。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,' +
-                '"unit":"计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回抽、片、克、毫升、升等小单位，除非物品明确是散装称重。看不清填空字符串。",' +
-                '"spec":"物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。",' +
-                '"shelfLifeDays":数字（保质期天数，不确定填0）,' +
-                '"warrantyDays":数字（保修期天数，不确定填0）,' +
-                '"note":"一句话描述"' +
-                '}';
-            const body = {
-                contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: base64 } }] }],
-                generationConfig: { temperature: 0.2, maxOutputTokens: 300 }
-            };
-            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-            if (!r.ok) { const txt = await r.text(); throw new Error('HTTP ' + r.status + ' ' + txt.slice(0, 120)); }
-            const j = await r.json();
-            const text = j.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const m = text.match(/\{[\s\S]*\}/);
-            if (!m) throw new Error('no json');
-            return JSON.parse(m[0]);
-        }
-        function mapCategoryToId(catName) {
-            if (!catName) return '';
-            const s = String(catName);
-            if (/食品|零食/.test(s)) return 'c_food_snack';
-            if (/生鲜/.test(s)) return 'c_fresh';
-            if (/药品|药/.test(s)) return 'c_med';
-            if (/日化|清洁/.test(s)) return 'c_clean';
-            if (/美妆|护肤/.test(s)) return 'c_beauty';
-            if (/厨/.test(s)) return 'c_kitchen';
-            if (/数码|电器|电子/.test(s)) return 'c_digital';
-            if (/服饰|衣服/.test(s)) return 'c_cloth';
-            if (/文具/.test(s)) return 'c_stat';
-            if (/家居|家具/.test(s)) return 'c_home';
-            if (/母婴|宠物/.test(s)) return 'c_pet';
-            if (/文件|证件/.test(s)) return 'c_doc';
-            if (/安全|消防|急救/.test(s)) return 'c_safety';
-            if (/女性|卫生巾|护理/.test(s)) return 'c_fem';
-            return 'c_other';
-        }
+
+
+
+
         function guessUnit(name) {
             if (!name) return '';
             const n = String(name).toLowerCase();
@@ -7954,156 +7570,8 @@
             }
             return s;
         }
-        let _ocrWorker = null;
-        async function recognizeImageText(dataUrl) {
-            if (typeof Tesseract === 'undefined') throw new Error('OCR 库未加载');
-            toast(T('ocr_image_processing'), 5000);
 
-            // ---- 图像预处理：灰度化 + 对比度增强 ----
-            const img = new Image();
-            img.src = dataUrl;
-            await new Promise(resolve => img.onload = resolve);
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                // 灰度公式
-                const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-                // 对比度增强（阈值化），让黑字更黑，背景更白
-                const val = gray > 130 ? 255 : 0;
-                data[i] = data[i + 1] = data[i + 2] = val;
-            }
-            ctx.putImageData(imgData, 0, 0);
-            const processedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            // ----------------------------------------
 
-            if (!_ocrWorker) {
-                toast(T('ocr_loading_model'), 8000);
-                _ocrWorker = await Tesseract.createWorker('chi_sim', 1, {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            toast(T('toast_ocr_progress', { p: Math.round((m.progress || 0) * 100) }), 1200);
-                        }
-                    }
-                });
-            }
-            // 识别处理后的图片
-            const r = await _ocrWorker.recognize(processedDataUrl);
-            return (r.data && r.data.text) || '';
-        }
-        function _parseOcrDate(str) {
-            const m = String(str || '').match(/(\d{4})[\-\.年\/](\d{1,2})[\-\.月\/](\d{1,2})/);
-            if (!m) return '';
-            return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
-        }
-        function parseOcrText(text) {
-            if (!text) return {};
-            const prefill = {};
-            const flat = text.replace(/\s+/g, '');
-
-            // 1. 生产日期
-            const prodM = flat.match(/生产日期[：:\s]*([\d\-\.年月日\/]+)/i) || flat.match(/(20\d{2})[\.\-年](\d{1,2})[\.\-月](\d{1,2})/);
-            if (prodM) prefill.prodDate = _parseOcrDate(prodM[1] || prodM[0]);
-
-            // 2. 保质期
-            const shelfM = flat.match(/保质期[：:\s]*(\d+)\s*(天|日|个月|月|年)/i);
-            if (shelfM) {
-                const n = parseInt(shelfM[1], 10);
-                const u = shelfM[2];
-                prefill.shelfLife = u === '年' ? n * 365 : /个月|月/.test(u) ? n * 30 : n;
-            }
-
-            // 3. 产品名称提取（宁可多字，不可少字）
-            let extractedName = '';
-            const nameM = text.match(/(?:产品名称|品名|名称)[：:\s]*([^\n]+)/);
-            if (nameM) {
-                extractedName = nameM[1].trim();
-                extractedName = extractedName.replace(/^[^\u4e00-\u9fa5a-zA-Z0-9]+|[^\u4e00-\u9fa5a-zA-Z0-9]+$/g, '');
-            }
-
-            if (extractedName) {
-                prefill.name = extractedName;
-            } else {
-                const lines = text.split('\n').map(s => s.trim()).filter(s => s.length >= 2 && s.length <= 30);
-                let possibleNames = [];
-                for (const line of lines) {
-                    if (/^(生产日期|保质期|净含量|地址|电话|厂家|执行标准|保存方法|注意事项|成分|配料|营养|产品标准|卫生标准|主要原料|营养成分|成分表|配料表|能量|蛋白质|脂肪|碳水化合物|钠|净重|规格|条码|编号|合格|检验|使用说明|警告|温馨提示|保质期至|过敏原|由此|剪开|撕开|撕口|半袋|半包|开封|打开|请勿|注意|提示|方法|建议|存放|储藏|开启|拉开|沿着|本品|此面|向上|轻拿|轻放|小心|防潮|防晒|避光|原色|自然开|开口|免洗|原味|经典|精选|优质|新鲜|特产|【|\(|\)|（|）)/.test(line)) continue;
-                    if (/^\d/.test(line)) continue;
-                    possibleNames.push(line);
-                    if (possibleNames.length >= 2) break; // 最多抓两行
-                }
-                if (possibleNames.length > 0) {
-                    if (possibleNames[0].length <= 5 && possibleNames.length > 1) {
-                        // 如果第一行很短（比如只有品牌），就拼上第二行（如：统一 + 阿萨姆奶茶）
-                        prefill.name = possibleNames[0] + possibleNames[1];
-                    } else {
-                        prefill.name = possibleNames[0];
-                    }
-                }
-            }
-
-            // 4. 净含量（⭐ 改为：抽/克/毫升视为规格写备注，库存默认按大包装单位）
-            const netM = flat.match(/(?:净含量|净重|规格|含量)[：:\s]*(\d+(?:\.\d+)?)\s*(ml|mL|毫升|kg|千克|g|克|L|升|抽|张|片|卷|包|瓶|盒|袋|罐|个|只|枚|粒|颗|支|条|件|块)/i);
-            if (netM) {
-                const num = parseFloat(netM[1]);
-                const raw = netM[2].toLowerCase();
-                // 计数类单位（个/包/瓶/盒/罐/袋/支/条/卷/片/块）→ 直接作为库存数量
-                if (/^(个|只|枚|粒|颗|包|瓶|盒|罐|袋|卷|件|条|块|支|片)$/.test(raw)) {
-                    prefill.qty = num;
-                    prefill.unit = raw;
-                } else {
-                    // 重量 / 体积 / 抽数 / 张数 → 视为"包装规格"，写入备注，库存按大包装单位
-                    prefill.qty = 1;
-                    const packUnit = guessUnit(prefill.name || '');
-                    prefill.unit = packUnit || '件';
-                    const specLabel = '规格：' + num + netM[2];
-                    prefill.note = (prefill.note ? prefill.note + '\n' : '') + specLabel;
-                }
-            }
-            // ⭐ 额外兜底：识别"×3包"、"3包装"这种多件包装
-            const multiM = flat.match(/[×xX*]\s*(\d+)\s*(包|瓶|盒|袋|罐|个|件|条|卷)/);
-            if (multiM) {
-                prefill.qty = parseInt(multiM[1], 10) || 1;
-                prefill.unit = multiM[2];
-            }
-
-            // 5. 算过期日
-            if (prefill.prodDate && prefill.shelfLife) {
-                prefill.expDate = addDays(prefill.prodDate, prefill.shelfLife);
-            }
-
-            // 6. 分类兜底
-            if (prefill.name && !prefill.catId) {
-                const m = matchShelfLife(prefill.name);
-                if (m) prefill.catId = m.catId;
-            }
-
-            // 7. 单位兜底
-            if (!prefill.unit && prefill.name) prefill.unit = guessUnit(prefill.name);
-
-            return prefill;
-        }
-        async function runLocalRecognition(dataUrl) {
-            toast(T('ocr_processing'), 5000);
-            try {
-                const text = await recognizeImageText(dataUrl);
-                const prefill = parseOcrText(text);
-                prefill.photo = dataUrl;
-                prefill._hit = 'ai';
-                // ⭐ 追加而不是覆盖，保住 parseOcrText 写入的「规格：xxx」
-                const ocrNote = T('ocr_original_text') + text.slice(0, 400);
-                prefill.note = (prefill.note ? prefill.note + '\n\n' : '') + ocrNote;
-                return prefill;
-            } catch (err) {
-                console.warn(err);
-                toast(T('ocr_failed', { msg: err.message || '' }), 3000);
-                return { photo: dataUrl, _hit: 'ai' };
-            }
-        }
         // ================= 智能精简名称 =================
         function cleanItemName(rawName, visionName) {
             if (!rawName) return { name: '', originalName: '' };
@@ -8223,92 +7691,10 @@
 
             return result;
         }
-        /* --- 百度 API 支持（带超时控制版） --- */
-        let _baiduTokenCache = { token: '', expireAt: 0 };
 
-        async function getBaiduToken() {
-            const st = S.settings;
-            if (!st.baiduApiKey || !st.baiduSecretKey) throw new Error('未配置百度 API Key');
-            if (_baiduTokenCache.token && Date.now() < _baiduTokenCache.expireAt) {
-                return _baiduTokenCache.token;
-            }
 
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-            try {
-                // ⚠️ 换成 localhost
-                const res = await fetch(`http://localhost:8080/oauth/2.0/token?grant_type=client_credentials&client_id=${st.baiduApiKey}&client_secret=${st.baiduSecretKey}`, {
-                    method: 'POST',
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                const data = await res.json();
-                if (!data.access_token) throw new Error(data.error_description || '获取 Token 失败');
 
-                _baiduTokenCache = {
-                    token: data.access_token,
-                    expireAt: Date.now() + (Math.max(60, data.expires_in - 3600)) * 1000
-                };
-                return data.access_token;
-            } catch (e) {
-                clearTimeout(timeoutId);
-                if (e.name === 'AbortError') throw new Error('获取百度 Token 超时(网络卡顿)');
-                throw e;
-            }
-        }
-
-        async function callBaiduVision(dataUrl) {
-            const token = await getBaiduToken();
-            const base64Image = dataUrl.split(',')[1];
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-            try {
-                // ⚠️ 换成 localhost
-                const res = await fetch(`http://localhost:8080/rest/2.0/image-classify/v2/advanced_general?access_token=${token}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `image=${encodeURIComponent(base64Image)}&baike_num=0`,
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                const data = await res.json();
-                if (data.error_code) throw new Error(data.error_msg);
-                return data.result || [];
-            } catch (e) {
-                clearTimeout(timeoutId);
-                if (e.name === 'AbortError') throw new Error('百度图像识别超时');
-                throw e;
-            }
-        }
-
-        async function callBaiduOcr(dataUrl) {
-            const token = await getBaiduToken();
-            const base64Image = dataUrl.split(',')[1];
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-            try {
-                // ⚠️ 换成 localhost
-                const res = await fetch(`http://localhost:8080/rest/2.0/ocr/v1/accurate_basic?access_token=${token}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `image=${encodeURIComponent(base64Image)}&detect_direction=true`,
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                const data = await res.json();
-                if (data.error_code) throw new Error(data.error_msg);
-                return data.words_result.map(item => item.words).join('\n');
-            } catch (e) {
-                clearTimeout(timeoutId);
-                if (e.name === 'AbortError') throw new Error('百度文字识别超时');
-                throw e;
-            }
-        }
         async function callLlmVision(dataUrl) {
             const st = S.settings;
             if (!st.llmApiKey) throw new Error('未配置大模型 Key');
@@ -8319,7 +7705,7 @@
             const CONFIG = {
                 hunyuan: {
                     // 腾讯混元官方直连
-                    url: '/proxy',  
+                    url: '/proxy',
                     model: 'hy-vision-2.0-instruct',
                     // 如果你还在用本地代理，把 url 换成下面这行，并在代理里把 /hunyuan 转发到官方地址
                     // url: 'http://localhost:8080/hunyuan/chat/completions',
@@ -8354,12 +7740,12 @@
 
             const prompt = `请仔细观察照片，提取物品信息，必须严格返回 JSON 格式，不要输出任何 markdown 代码块或额外解释：
 {
-  "name": "物品名称。药品格式：品牌+通用名+功效；其他格式：品牌+品名。限制15字内，无标点。",
-  "prodDate": "生产日期。格式为 YYYY-MM-DD。看不清填空字符串。",
-  "shelfLife": 数字，保质期天数。几个月或几年请换算成天，没有写填 0,
-  "quantity": 数字，库存件数。⚠️ 几乎总是填 1（即"几件商品"）。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,
-  "unit": "计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回'抽'、'片'、'克'、'毫升'、'升'等小单位，除非物品明确是散装称重。看不清填空字符串。",
-  "spec": "物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。"
+      "name": "物品名称。药品格式：品牌+通用名+功效；其他格式：品牌+品名。限制15字内，无标点。",
+      "prodDate": "生产日期。格式为 YYYY-MM-DD。看不清填空字符串。",
+      "shelfLife": 数字，保质期天数。几个月或几年请换算成天，没有写填 0,
+      "quantity": 数字，库存件数。⚠️ 几乎总是填 1（即"几件商品"）。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,
+      "unit": "计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回'抽'、'片'、'克'、'毫升'、'升'等小单位，除非物品明确是散装称重。看不清填空字符串。",
+      "spec": "物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。"
 }`;
 
             const body = {
@@ -8406,42 +7792,8 @@
                 throw e;
             }
         }
-        
-        async function runAiRecognition(dataUrl) {
-            const apiKey = (S.settings.aiApiKey || '').trim();
-            if (!apiKey) { toast(T('ai_no_key'), 3000); return null; }
-            toast(T('ai_recognizing'), 6000);
-            try {
-                const r = await callGeminiVision(apiKey, dataUrl);
-                const prefill = {
-                    name: r.name || '',
-                    catId: mapCategoryToId(r.category),
-                    qty: (r.quantity && +r.quantity > 0) ? +r.quantity : 1,
-                    unit: normalizeUnit(r.unit, r.name) || guessUnit(r.name) || '件',
-                    note: r.note || '',
-                    _hit: 'ai',
-                    photo: dataUrl
-                };
-                // ⭐ 规格信息单独写备注，不污染库存数量
-                if (r.spec) {
-                    const specStr = String(r.spec).trim();
-                    if (specStr) prefill.note = (prefill.note ? prefill.note + '\n' : '') + '规格：' + specStr;
-                }
-                if (r.shelfLifeDays && +r.shelfLifeDays > 0) {
-                    prefill.shelfLife = +r.shelfLifeDays;
-                    prefill.prodDate = todayStr();
-                    prefill.expDate = addDays(todayStr(), +r.shelfLifeDays);
-                }
-                if (r.warrantyDays && +r.warrantyDays > 0) {
-                    prefill.warrantyUntil = addDays(todayStr(), +r.warrantyDays);
-                }
-                return prefill;
-            } catch (err) {
-                console.warn(err);
-                toast(T('ai_recognize_fail') + '：' + (err.message || ''), 3500);
-                return { photo: dataUrl, _hit: 'ai' };
-            }
-        }
+
+
         let onboardIdx = 0;
         const ONBOARD_TOTAL = 4;
         function showOnboard() { onboardIdx = 0; applyOnboardI18n(); renderOnboard(); $('#onboard').classList.remove('hidden'); }
@@ -8627,7 +7979,13 @@
                 const cat = catOf(it.catId);
                 const loc = locOf(it.locId);
                 const st = expStatus(it);
-                const statusMap = { expired: T('status_expired'), soon: T('status_soon'), fresh: T('status_fresh'), '': T('status_none') };
+                const statusMap = {
+                    expired: T('status_expired'),
+                    soon: T('status_soon'),
+                    ok: T('status_fresh'),
+                    none: T('status_none'),
+                    depleted: '已用完'
+                };
                 const dd = daysUntil(effectiveExpDate(it));
                 return [
                     idx + 1,
@@ -8641,7 +7999,7 @@
                     statusMap[st] || '',
                     it.purchaseDate || '',
                     it.prodDate || '',
-                    it.expDate || '',
+                    effectiveExpDate(it) || '',
                     dd !== null ? dd : '',
                     it.opened ? '是' : '否',
                     it.openedDate || '',
@@ -8796,8 +8154,13 @@
             }, { danger: true, okText: '确认撤销' });
         }
         function exportJSON() {
-            // ⭐ 把 photo key 解析成 dataUrl 一起导出
             const exportData = JSON.parse(JSON.stringify(S));
+            if (exportData.settings) {
+                delete exportData.settings.llmApiKey;
+                delete exportData.settings.baiduApiKey;
+                delete exportData.settings.baiduSecretKey;
+                delete exportData.settings.aiApiKey;
+            }
             exportData.items.forEach(it => {
                 if (it.photo && !it.photo.startsWith('data:')) {
                     it.photo = PhotoDB.get(it.photo) || '';
@@ -8879,7 +8242,7 @@
             }
             return newItems;
         }
-          // ⭐ 导入时把 JSON 里的 dataUrl 图片写回 IDB，photo 字段改成新 key
+        // ⭐ 导入时把 JSON 里的 dataUrl 图片写回 IDB，photo 字段改成新 key
         async function importItemPhotos(items) {
             const addedKeys = [];
             // 若 IDB 未就绪，先主动初始化一次
@@ -9081,9 +8444,9 @@
             if (act === 'pickAdd') {
                 const mode = el.dataset.mode;
                 closeSheet();
-                if (mode === 'scan') { UI.tab = 'scan'; render(); }
-                else if (mode === 'ai') {
-                    if (UI.tab === 'scan') stopScan();
+
+                if (mode === 'ai') {
+
 
                     // ⭐ 如果有原生相机插件，弹出我们自己的漂亮菜单
                     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera) {
@@ -9134,7 +8497,7 @@
                     };
                     inp.click();
                 } else {
-                    if (UI.tab === 'scan') stopScan();
+
                     UI.tab = 'items';
                     render();
                     setTimeout(() => itemFormSheet(null, {}), 120);
@@ -9220,26 +8583,16 @@
                 return;
             }
             if (act === 'checkin') { doCheckin(); return; }
-            if (act === 'doRecordAction') { UI.tab = 'scan'; render(); return; }
+            if (act === 'doRecordAction') { addActionSheet(); return; }
             if (act === 'openAchievements') { achievementsSheet(); return; }
-            if (act === 'saveBaiduKeys') {
-                const ak = document.getElementById('baiduApiKeyInput').value.trim();
-                const sk = document.getElementById('baiduSecretKeyInput').value.trim();
-                S.settings.baiduApiKey = ak;
-                S.settings.baiduSecretKey = sk;
-                save(); toast('百度 API 已保存'); render({ noScroll: true }); return;
-            }
+
             if (act === 'saveLlmKey') {
                 S.settings.llmApiKey = document.getElementById('llmApiKeyInput').value.trim();
                 S.settings.llmType = document.getElementById('llmTypeInput').value;
                 save(); toast('大模型 API 已保存'); render({ noScroll: true }); return;
             }
-            if (act === 'saveAiKey') {
-                const inp = document.getElementById('aiKeyInput');
-                S.settings.aiApiKey = inp ? inp.value.trim() : '';
-                save(); toast(T('ai_api_key_saved')); render({ noScroll: true }); return;
-            }
-            if (act === 'clearAiKey') { S.settings.aiApiKey = ''; save(); render({ noScroll: true }); return; }
+
+
             if (act === 'discardItem') {
                 const it = S.items.find(i => i.id === el.dataset.id);
                 if (!it) return;
@@ -9248,6 +8601,7 @@
                     it.locId = '';
                     it.lastTakenAt = Date.now();
                     it.lastUsedAt = Date.now();
+                    it.discardedAt = Date.now();
                     // 如果物品原本是过期的，计入过期丢弃，否则计入普通丢弃
                     if (expStatus(it) === 'expired') {
                         S.stats.totalDiscardExpired = (S.stats.totalDiscardExpired || 0) + 1;
@@ -9469,7 +8823,7 @@
                     const name = nameEl ? nameEl.value.trim() : '';
                     if (name) setTimeout(() => showShelfRecommendInline(id, name), 60);
                 }
-                
+
                 return;
             }
             if (act === 'openLayoutManage') { layoutManageSheet(false); return; }
@@ -9561,14 +8915,9 @@
             }
             if (act === 'toggleDark') { S.settings.dark = !S.settings.dark; applyTheme(); save(); render({ noScroll: true }); return; }
             if (act === 'toggleAutoDark') { S.settings.autoDark = !S.settings.autoDark; applyTheme(); save(); render({ noScroll: true }); return; }
-            if (act === 'toggleNet') { S.settings.enableNet = !S.settings.enableNet; save(); render({ noScroll: true }); return; }
+
             if (act === 'setLang') { S.settings.lang = el.dataset.l; save(); render({ noScroll: true }); return; }
-            if (act === 'clearCache') {
-                customConfirm(T('clear_cache'), T('clear_cache_confirm'), () => {
-                    S.barcodeCache = {}; save(); render({ noScroll: true }); toast(T('clear_cache_done'));
-                }, { danger: true, okText: '清空' });
-                return;
-            }
+
             if (act === 'openItem') {
                 if (UI.organizeMode) return;
                 itemDetailSheet(el.dataset.id); return;
@@ -9584,6 +8933,7 @@
                     it.deletedAt = Date.now();
                     if (wasExpired) {
                         S.stats.totalDiscardExpired = (S.stats.totalDiscardExpired || 0) + 1;
+                        it.discardedAt = Date.now();
                     }
                     const activeItems = S.items.filter(i => !i.deletedAt);
                     if (activeItems.length === 0) { S.stats.emptiedAll = 1; }
@@ -9609,7 +8959,7 @@
                     S.items = S.items.filter(i => i.id !== el.dataset.id);
                     if (photoKey) deletePhotoIfOrphan(photoKey);   // ← 加这一行
                     save(); toast(T('permanently_deleted'));
-   
+
                     render({ noScroll: true });
                     trashSheet();
                 }, { danger: true, okText: T('btn_delete') });
@@ -9637,23 +8987,9 @@
                 }, { danger: true, okText: T('btn_confirm') });
                 return;
             }
-            if (act === 'emptyTrash') {
-                customConfirm(T('trash_confirm_empty_title'), T('trash_confirm_empty_msg'), () => {
-                    S.items = S.items.filter(i => !i.deletedAt);
-                    save(); toast(T('trash_emptied'));
-                    render({ noScroll: true });
-                    trashSheet();
-                }, { danger: true, okText: T('trash_empty_all') });
-                return;
-            }
+
             if (act === 'openTrash') { trashSheet(); return; }
-            if (act === 'manualSubmit') {
-                const v = ($('#manualCode') || {}).value || '';
-                if (!v.trim()) return;
-                $('#manualCode').value = '';
-                onScanned(v.trim());
-                return;
-            }
+
             if (act === 'openCatManage') { catManageSheet(); return; }
             if (act === 'addCat') {
                 const n = prompt(T('add_cat'), '');
@@ -9765,7 +9101,6 @@
                                         S = Object.assign(defaultData(), data);
                                         S.settings = Object.assign(defaultData().settings, data.settings || {});
                                         S.stats = Object.assign(defaultData().stats, data.stats || {});
-                                        if (!S.barcodeCache) S.barcodeCache = {};
                                         if (!S.achievements || typeof S.achievements !== 'object') S.achievements = {};
                                         ensureDefaultCats();
                                         ensureAllOthers();
@@ -9870,14 +9205,14 @@
             const openedEl = document.querySelector('[data-act="toggleOpened"]');
             const opened = openedEl ? openedEl.classList.contains('on') : false;
             let qtyVal = parseFloat(v('qty'));
-            if (!v('qty') || isNaN(qtyVal) || qtyVal < 1) qtyVal = 1;
+            if (isNaN(qtyVal) || qtyVal < 0) qtyVal = 0;
+            if (!id && qtyVal === 0) qtyVal = 1;
             let catId = v('cat');
             if (!catId) {
                 const m = matchShelfLife(name);
                 catId = m ? m.catId : matchCategoryOnly(name);
             }
             let locId = v('loc');
-            // ⭐ 保险逻辑：如果用户强行选了第一级，自动给他转成该房间的“其他”储物位
             if (locId) {
                 const loc = locOf(locId);
                 if (loc && !loc.parentId) {
@@ -9899,33 +9234,23 @@
                 warrantyUntil: v('warranty'),
                 note: v('note'), photo: savePhoto(window.__currentPhoto || '')
             };
-            // ⭐ 智能模糊重复检测：名字包含、或去字后相同，都可触发合并
             if (!id) {
                 let dupes = activeItems().filter(it =>
                     it.name === name && it.locId === locId && (it.unit || '') === (unit || '')
                 );
-
-                // 如果完全一样找不到，尝试模糊匹配
                 if (dupes.length === 0) {
                     dupes = activeItems().filter(it => {
-                        // 名字必须有重叠部分（比如“舒心绿纸巾”包含“舒心纸巾”）
                         const isNameSimilar = it.name.includes(name) || name.includes(it.name);
-                        // 排除掉太短的词（比如“纸”和“抽纸”，太短容易误伤）
                         const isLongEnough = Math.min(it.name.length, name.length) >= 3;
-
                         if (isNameSimilar && isLongEnough) return true;
-
-                        // 如果名字相似度不够，但分类、单位、品牌前缀完全一致，也算相似
                         const prefix1 = it.name.substring(0, 2);
                         const prefix2 = name.substring(0, 2);
                         if (prefix1 === prefix2 && it.catId === catId && it.unit === unit && prefix1.length === 2) {
                             return true;
                         }
-
                         return false;
                     });
                 }
-
                 if (dupes.length > 0) {
                     const totalQty = dupes.reduce((s, it) => s + (+it.qty || 0), 0);
                     customConfirm(T('duplicate_found'),
@@ -9951,14 +9276,14 @@
 
             if (id) {
                 const it = S.items.find(i => i.id === id);
-                if (it) Object.assign(it, data, { updatedAt: Date.now(), lastUsedAt: Date.now() });
+                if (it) {
+                    const oldPhoto = it.photo;
+                    Object.assign(it, data, { updatedAt: Date.now(), lastUsedAt: Date.now() });
+                    if (oldPhoto && oldPhoto !== it.photo) deletePhotoIfOrphan(oldPhoto);
+                }
             } else {
                 doAddItem(data);
                 return;
-            }
-            if (data.barcode) {
-                if (!S.barcodeCache) S.barcodeCache = {};
-                S.barcodeCache[data.barcode] = { name: data.name, catId: data.catId, unit: data.unit, price: data.price, ts: Date.now() };
             }
             window.__currentPhoto = '';
             markRecorded();
@@ -9980,10 +9305,6 @@
                 if (c && topCats.indexOf(c.id) >= 0) usedTops.add(c.id);
             });
             if (usedTops.size >= topCats.length) S.stats.allCatsUsed = 1;
-            if (data.barcode) {
-                if (!S.barcodeCache) S.barcodeCache = {};
-                S.barcodeCache[data.barcode] = { name: data.name, catId: data.catId, unit: data.unit, price: data.price, ts: Date.now() };
-            }
             window.__currentPhoto = '';
             markRecorded();
             save(); closeSheet(); toast(T('saved')); checkAchievements(); render({ noScroll: true });
@@ -10017,11 +9338,11 @@
             console.error('初始化崩溃:', err);
             // 尝试兜底：清空数据重试
             document.getElementById('view').innerHTML = `
-                <div class="empty" style="padding-top:100px;">
-                    <div style="font-size:16px;color:var(--danger);font-weight:600;margin-bottom:10px;">应用启动异常</div>
-                    <div style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:20px;">${err.message}</div>
-                    <button class="btn primary" onclick="localStorage.clear();location.reload();">清除本地数据并重试</button>
-                </div>`;
+                    <div class="empty" style="padding-top:100px;">
+                        <div style="font-size:16px;color:var(--danger);font-weight:600;margin-bottom:10px;">应用启动异常</div>
+                        <div style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:20px;">${err.message}</div>
+                        <button class="btn primary" onclick="localStorage.clear();location.reload();">清除本地数据并重试</button>
+                    </div>`;
             removeSplash();
         }
 
@@ -10085,10 +9406,7 @@
                 if (saveBtn) { saveBtn.click(); return; }
             }
         });
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) stopScan();
-            else if (UI.tab === 'scan') startScan();
-        });
+
     </script>
 </body>
 </html>
