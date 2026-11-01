@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -6068,6 +6068,43 @@
             if (opts.noScroll) { window.scrollTo(0, scrollY); }
             else { window.scrollTo(0, 0); }
         }
+        // ⭐ 合并时的数量换算：件类直接加，重量类换算，混合类提示
+        function mergeQuantities(items, target) {
+            if (!items || !items.length) return { qty: 0, unit: '', note: '' };
+            const targetUnit = target.unit || '';
+            const pieceUnits = ['个', '包', '瓶', '盒', '袋', '罐', '支', '条', '件', '卷', '片', '块'];
+            const weightMap = { '克': 1, 'g': 1, '斤': 500, '公斤': 1000, '千克': 1000, 'kg': 1000 };
+            const volMap = { '毫升': 1, 'ml': 1, '升': 1000, 'l': 1000, 'L': 1000 };
+
+            // 情况 1：单位一致
+            if (items.every(it => (it.unit || '') === targetUnit)) {
+                return { qty: items.reduce((s, it) => s + (+it.qty || 0), 0), unit: targetUnit, note: '' };
+            }
+
+            // 情况 2：全是件类（包/盒/袋/瓶/罐/个/支/条/件/卷/片/块）→ 视为等价，直接相加
+            if (items.every(it => pieceUnits.includes(it.unit || '')) && pieceUnits.includes(targetUnit)) {
+                return { qty: items.reduce((s, it) => s + (+it.qty || 0), 0), unit: targetUnit, note: '不同包装单位已合并为「' + targetUnit + '」' };
+            }
+
+            // 情况 3：全是重量类 → 换算到主单位
+            if (items.every(it => weightMap[it.unit || '']) && weightMap[targetUnit]) {
+                const total = items.reduce((s, it) => s + (+it.qty || 0) * weightMap[it.unit], 0);
+                return { qty: +(total / weightMap[targetUnit]).toFixed(2), unit: targetUnit, note: '已按重量换算' };
+            }
+
+            // 情况 4：全是体积类 → 换算到主单位
+            if (items.every(it => volMap[it.unit || '']) && volMap[targetUnit]) {
+                const total = items.reduce((s, it) => s + (+it.qty || 0) * volMap[it.unit], 0);
+                return { qty: +(total / volMap[targetUnit]).toFixed(2), unit: targetUnit, note: '已按体积换算' };
+            }
+
+            // 情况 5：混合（件+量），无法自动换算
+            return {
+                qty: items.reduce((s, it) => s + (+it.qty || 0), 0),
+                unit: targetUnit || '件',
+                note: '⚠️ 单位不一致，数量已直接相加，建议手动核对'
+            };
+        }
         function renderOrganizeBar() {
             const old = document.getElementById('organizeBar');
             if (old) old.remove();
@@ -7645,8 +7682,19 @@
                 if (netResult) {
                     prefill.name = netResult.name;
                     prefill.catId = netResult.catId;
-                    prefill.unit = netResult.qty;
-                    prefill.note = netResult.note;
+                    // ⭐ 从 "12包"/"500ml"/"12 x 30g" 里解析真实数量和单位
+                    const spec = String(netResult.qty || '').trim();
+                    const countM = spec.match(/^(\d+)\s*(包|盒|瓶|袋|罐|个|支|条|件|卷|片|块)/);
+                    if (countM) {
+                        // "12包" → qty=12, unit=包
+                        prefill.qty = parseInt(countM[1], 10) || 1;
+                        prefill.unit = countM[2];
+                    } else {
+                        // "500ml" / "12 x 30g" / 空 → qty=1，单位靠名称猜
+                        prefill.qty = 1;
+                        prefill.unit = guessUnit(netResult.name) || '件';
+                    }
+                    prefill.note = netResult.note;                    // 规格已在 note 里
                     prefill._hit = 'network';
                     toast('✓ ' + T('network_hit'));
                 } else {
@@ -7724,7 +7772,16 @@
             const base64 = imageDataUrl.split(',')[1];
             const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=' + encodeURIComponent(apiKey);
             const prompt = '这是一张物品的照片。请识别这是什么物品，并返回严格 JSON（不要任何其他文字、不要 markdown 代码块）：' +
-                '{"name":"物品的中文名称（尽量包含品牌名）","category":"从这些里选一个最接近的：食品/生鲜/药品/日化/美妆/厨具/数码/服饰/文具/家居/母婴/文件/安全/其他","unit":"计量单位，仅从这些里选一个最合适的：个/包/瓶/盒/袋/罐/支/条/件/卷/片/块/克/毫升/升，不确定填空字符串","shelfLifeDays":数字(保质期天数，不确定填0),"warrantyDays":数字(保修期天数，不确定填0),"note":"一句话描述"}';
+                '{' +
+                '"name":"物品的中文名称（尽量包含品牌名），限制15字内，无标点",' +
+                '"category":"从这些里选一个最接近的：食品/生鲜/药品/日化/美妆/厨具/数码/服饰/文具/家居/母婴/文件/安全/其他",' +
+                '"quantity":数字，库存件数。⚠️ 几乎总是填 1。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,' +
+                '"unit":"计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回抽、片、克、毫升、升等小单位，除非物品明确是散装称重。看不清填空字符串。",' +
+                '"spec":"物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。",' +
+                '"shelfLifeDays":数字（保质期天数，不确定填0）,' +
+                '"warrantyDays":数字（保修期天数，不确定填0）,' +
+                '"note":"一句话描述"' +
+                '}';
             const body = {
                 contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: base64 } }] }],
                 generationConfig: { temperature: 0.2, maxOutputTokens: 300 }
@@ -7779,41 +7836,52 @@
             }
             return best;
         }
-        function normalizeUnit(u) {
+        function normalizeUnit(u, itemName) {
             if (!u) return '';
             const s = String(u).trim();
             if (!s) return '';
+
             // 精确匹配
             if (UNIT_OPTIONS.indexOf(s) >= 0) return s;
-            // 常见映射：AI 可能返回"瓶装""一盒""500ml"等
+
+            const n = String(itemName || '').toLowerCase();
+            // ⭐ 只有明确"散装/称重"才保留重量单位，其余一律走包装单位
+            const isBulk = /散装|称重/.test(n);
+
+            // 数字 + 抽/张 → 包装单位（只处理抽/张，药片"120片"保留片）
+            if (/^\d+\s*(抽|张)$/.test(s)) return '包';
+
+            // 克 / 毫升 / 升 等 → 包装单位
+            if (/^(g|克|kg|千克|公斤)$/i.test(s)) {
+                return isBulk ? '克' : '袋';
+            }
+            if (/^(ml|毫升|l|升)$/i.test(s)) {
+                return isBulk ? '毫升' : '瓶';
+            }
+
+            // 常见别名 → 标准单位
             const map = {
-                '个': ['个', '个装', '只', '支装', '枚', '颗', '粒', '台', '部', '张', '本', '把', '副', '双', '对', '套', '组'],
+                '个': ['个', '个装', '只', '枚', '颗', '粒', '台', '部', '本', '把', '副', '双', '对', '套', '组'],
                 '包': ['包', '袋装', '袋', '包裝', 'pack', '袋裝'],
-                '瓶': ['瓶', '瓶装', '樽', '瓶裝', 'bottle', '瓶酒', '罐裝瓶'],
-                '盒': ['盒', '盒装', '箱', '盒裝', 'box', '礼盒', '包装盒'],
-                '袋': ['袋', '袋装', '包', '袋裝', 'bag', '小袋', '茶袋'],
+                '瓶': ['瓶', '瓶装', '樽', '瓶裝', 'bottle'],
+                '盒': ['盒', '盒装', '盒裝', 'box', '礼盒', '包装盒'],
+                '袋': ['袋', '袋装', '袋裝', 'bag', '小袋', '茶袋'],
                 '罐': ['罐', '罐装', '听', '罐裝', 'can', 'tin', '易拉罐', '铁罐'],
-                '支': ['支', '只', '根', '枝', '支装', '棒', '杆', '支裝'],
-                '条': ['条', '根', '枝', '条装', '条裝'],
-                '件': ['件', '个', '件装', '件裝', '件数'],
+                '支': ['支', '枝', '支装', '棒', '杆', '支裝'],
+                '条': ['条', '条装', '条裝'],
+                '件': ['件', '件装', '件裝', '件数'],
                 '卷': ['卷', '筒', '卷装', '卷裝', '卷纸'],
-                '片': ['片', '张', '片装', '片裝', '薄片', '药片', '面膜'],
-                '块': ['块', '个', '砖', '块装', '块裝', '皂块', '巧克力块'],
-                '克': ['克', 'g', 'G', '克装', '克重', '公克', 'gram'],
-                '毫升': ['毫升', 'ml', 'ML', 'mL', 'cc', '毫升装', '公厘', 'milliliter'],
-                '升': ['升', 'L', 'l', '升装', '公升', 'liter', 'litre'],
+                '片': ['片', '片装', '片裝', '薄片', '药片', '面膜'],
+                '块': ['块', '砖', '块装', '块裝', '皂块', '巧克力块'],
                 '斤': ['斤', '500g', '半公斤', '市斤']
             };
             for (const [std, aliases] of Object.entries(map)) {
-                if (aliases.some(a => s === a || s.includes(a))) {
-                    return std;
-                }
+                if (aliases.some(a => s === a || s.includes(a))) return std;
             }
-            // 提取包含的单字单位
-            for (const u of UNIT_OPTIONS) {
-                if (s.includes(u)) return u;
+            for (const u2 of UNIT_OPTIONS) {
+                if (s.includes(u2)) return u2;
             }
-            return s; // 保留原值，unitOptsHtml 会自动添加为选项
+            return s;
         }
         let _ocrWorker = null;
         async function recognizeImageText(dataUrl) {
@@ -7907,17 +7975,29 @@
                 }
             }
 
-            // 4. 净含量
-            const netM = flat.match(/(?:净含量|净重|规格|含量)[：:\s]*(\d+(?:\.\d+)?)\s*(ml|mL|毫升|g|克|kg|千克|L|升|抽|片|卷|包)/i);
+            // 4. 净含量（⭐ 改为：抽/克/毫升视为规格写备注，库存默认按大包装单位）
+            const netM = flat.match(/(?:净含量|净重|规格|含量)[：:\s]*(\d+(?:\.\d+)?)\s*(ml|mL|毫升|kg|千克|g|克|L|升|抽|张|片|卷|包|瓶|盒|袋|罐|个|只|枚|粒|颗|支|条|件|块)/i);
             if (netM) {
                 const num = parseFloat(netM[1]);
                 const raw = netM[2].toLowerCase();
-                if (/抽/.test(raw)) { prefill.qty = num; prefill.unit = '抽'; }
-                else if (/包/.test(raw)) { prefill.qty = num; prefill.unit = '包'; }
-                else if (/ml|毫升/.test(raw)) { prefill.qty = num; prefill.unit = '毫升'; }
-                else if (/kg|千克/.test(raw)) { prefill.qty = num * 1000; prefill.unit = '克'; }
-                else if (/^g$|克/.test(raw)) { prefill.qty = num; prefill.unit = '克'; }
-                else if (/^l$|升/.test(raw)) { prefill.unit = '升'; prefill.qty = num; }
+                // 计数类单位（个/包/瓶/盒/罐/袋/支/条/卷/片/块）→ 直接作为库存数量
+                if (/^(个|只|枚|粒|颗|包|瓶|盒|罐|袋|卷|件|条|块|支|片)$/.test(raw)) {
+                    prefill.qty = num;
+                    prefill.unit = raw;
+                } else {
+                    // 重量 / 体积 / 抽数 / 张数 → 视为"包装规格"，写入备注，库存按大包装单位
+                    prefill.qty = 1;
+                    const packUnit = guessUnit(prefill.name || '');
+                    prefill.unit = packUnit || '件';
+                    const specLabel = '规格：' + num + netM[2];
+                    prefill.note = (prefill.note ? prefill.note + '\n' : '') + specLabel;
+                }
+            }
+            // ⭐ 额外兜底：识别"×3包"、"3包装"这种多件包装
+            const multiM = flat.match(/[×xX*]\s*(\d+)\s*(包|瓶|盒|袋|罐|个|件|条|卷)/);
+            if (multiM) {
+                prefill.qty = parseInt(multiM[1], 10) || 1;
+                prefill.unit = multiM[2];
             }
 
             // 5. 算过期日
@@ -7943,7 +8023,9 @@
                 const prefill = parseOcrText(text);
                 prefill.photo = dataUrl;
                 prefill._hit = 'ai';
-                prefill.note = T('ocr_original_text') + text.slice(0, 400);
+                // ⭐ 追加而不是覆盖，保住 parseOcrText 写入的「规格：xxx」
+                const ocrNote = T('ocr_original_text') + text.slice(0, 400);
+                prefill.note = (prefill.note ? prefill.note + '\n\n' : '') + ocrNote;
                 return prefill;
             } catch (err) {
                 console.warn(err);
@@ -8040,16 +8122,24 @@
                         result.prodDate = llmData.prodDate;
                     }
 
-                    // 3. 处理数量和单位
+                    // 3. 处理数量和单位（⭐ 优先用大包装单位）
                     if (llmData.quantity && +llmData.quantity > 0) {
                         result.qty = +llmData.quantity;
+                    } else {
+                        result.qty = 1;
                     }
                     if (llmData.unit) {
-                        result.unit = normalizeUnit(llmData.unit) || llmData.unit;
+                        result.unit = normalizeUnit(llmData.unit, result.name) || llmData.unit;
                     }
-                    // 兜底：如果没给单位，尝试自己猜一个
                     if (!result.unit && result.name) {
-                        result.unit = guessUnit(result.name);
+                        result.unit = guessUnit(result.name) || '件';
+                    }
+                    // ⭐ 规格信息单独写备注，不污染库存数量
+                    if (llmData.spec) {
+                        const specStr = String(llmData.spec).trim();
+                        if (specStr) {
+                            result.note = (result.note ? result.note + '\n' : '') + '规格：' + specStr;
+                        }
                     }
 
                 } catch (err) {
@@ -8191,14 +8281,14 @@
 
             const service = CONFIG[type] || CONFIG.hunyuan;
 
-            // 统一的 Prompt（这段无需修改）
             const prompt = `请仔细观察照片，提取物品信息，必须严格返回 JSON 格式，不要输出任何 markdown 代码块或额外解释：
 {
-  "name": "物品名称。药品格式：品牌+通用名+功效（如：芬必得布洛芬 退烧止痛）；其他格式：品牌+品名（如：小米蓝牙耳机）。限制15字内，无标点。",
-  "prodDate": "生产日期。格式为 YYYY-MM-DD。如果看不清或没有印，填空字符串。",
-  "shelfLife": 数字，保质期天数。如果写着几个月或几年请换算成天，如果没有写填0,
-  "quantity": 数字，净含量或数量（如 500ml 填 500，12包填 12），如果没写填0,
-  "unit": "计量单位。如 毫升/克/片/包/瓶/袋。看不清填空字符串。"
+  "name": "物品名称。药品格式：品牌+通用名+功效；其他格式：品牌+品名。限制15字内，无标点。",
+  "prodDate": "生产日期。格式为 YYYY-MM-DD。看不清填空字符串。",
+  "shelfLife": 数字，保质期天数。几个月或几年请换算成天，没有写填 0,
+  "quantity": 数字，库存件数。⚠️ 几乎总是填 1（即"几件商品"）。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,
+  "unit": "计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回'抽'、'片'、'克'、'毫升'、'升'等小单位，除非物品明确是散装称重。看不清填空字符串。",
+  "spec": "物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。"
 }`;
 
             const body = {
@@ -8211,7 +8301,7 @@
                     ]
                 }],
                 temperature: 0.1,
-                max_tokens: 150
+                max_tokens: 200
             };
 
             const controller = new AbortController();
@@ -8255,11 +8345,17 @@
                 const prefill = {
                     name: r.name || '',
                     catId: mapCategoryToId(r.category),
-                    unit: normalizeUnit(r.unit),
+                    qty: (r.quantity && +r.quantity > 0) ? +r.quantity : 1,
+                    unit: normalizeUnit(r.unit, r.name) || guessUnit(r.name) || '件',
                     note: r.note || '',
                     _hit: 'ai',
                     photo: dataUrl
                 };
+                // ⭐ 规格信息单独写备注，不污染库存数量
+                if (r.spec) {
+                    const specStr = String(r.spec).trim();
+                    if (specStr) prefill.note = (prefill.note ? prefill.note + '\n' : '') + '规格：' + specStr;
+                }
                 if (r.shelfLifeDays && +r.shelfLifeDays > 0) {
                     prefill.shelfLife = +r.shelfLifeDays;
                     prefill.prodDate = todayStr();
@@ -8786,11 +8882,14 @@
                 // 将第一个勾选的物品作为“主物品”
                 const target = items[0];
 
-                // 计算总共加起来的数量
-                let totalQty = 0;
-                items.forEach(it => totalQty += (+it.qty || 0));
+                // ⭐ 用 mergeQuantities 做单位换算，代替原来的简单相加
+                const mergeResult = mergeQuantities(items, target);
+                const totalQty = mergeResult.qty;
 
-                const msg = `即将把选中的 ${items.length} 个物品，合并到「${target.name}」中。\n\n合并后总数：${totalQty} 件。\n其他物品将被放入回收站。\n是否继续？`;
+                const msg = `即将把选中的 ${items.length} 个物品，合并到「${target.name}」中。\n\n`
+                    + `合并后总数：${totalQty} ${mergeResult.unit || '件'}`
+                    + (mergeResult.note ? `\n${mergeResult.note}` : '')
+                    + `\n\n其他物品将被放入回收站。\n是否继续？`;
 
                 customConfirm('合并物品', msg, () => {
                     // 1. 更新主物品的数量
