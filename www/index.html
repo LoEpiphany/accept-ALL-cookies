@@ -5545,6 +5545,7 @@
 
         const LS_KEY = 'wanwu_v1';
         let S = null;
+        let __lastImportSnapshot = null; // ⭐ 用于保存导入前的数据快照
         const UI = {
             tab: 'home', q: '', fcat: '', fst: '', sort: 'recent', limit: 60,
             homePages: { take: 1, add: 1, urgent: 1, expired: 1 },
@@ -6837,6 +6838,9 @@
             h += '<div class="small muted" style="margin-bottom:12px;font-size:11.5px">' + T('export_csv_hint') + '</div>';
             h += '<button class="btn block" data-act="exportJson" style="margin-bottom:10px">' + T('export_json') + '</button>';
             h += '<button class="btn block" data-act="importData" style="margin-bottom:10px">' + T('import_data') + '</button>';
+            if (__lastImportSnapshot) {
+                h += '<button class="btn danger block" data-act="undoImport" style="margin-bottom:10px;color:var(--danger)">↩️ 撤销上一次导入</button>';
+            }
             h += '<button class="btn danger block" data-act="clearData">' + T('clear') + '</button>';
             h += '</div>';
             h += '<div class="notice">' + T('about') + '<br>' + (Store.persistent ? T('storage_ok') : (Store.mode === 'session' ? T('storage_session') : T('storage_memory'))) + '</div>';
@@ -8776,6 +8780,21 @@
             });
             return __h2pPromise;
         }
+        // ⭐ 撤销上一次导入
+        function undoLastImport() {
+            if (!__lastImportSnapshot) { toast('没有可撤销的导入记录'); return; }
+            customConfirm('撤销导入', '确定要撤销上一次导入吗？\n这将会恢复到导入前的状态，导入的物品、分类、位置都会被移除。', () => {
+                // 1. 把刚才导进去的图片删掉，防占空间
+                if (__lastImportSnapshot.addedPhotoKeys && __lastImportSnapshot.addedPhotoKeys.length) {
+                    __lastImportSnapshot.addedPhotoKeys.forEach(k => PhotoDB.del(k));
+                }
+                // 2. 恢复数据
+                S = __lastImportSnapshot.S;
+                __lastImportSnapshot = null;
+                // 3. 保存重绘
+                save(); render({ noScroll: true }); toast('已撤销导入');
+            }, { danger: true, okText: '确认撤销' });
+        }
         function exportJSON() {
             // ⭐ 把 photo key 解析成 dataUrl 一起导出
             const exportData = JSON.parse(JSON.stringify(S));
@@ -8860,8 +8879,9 @@
             }
             return newItems;
         }
-        // ⭐ 导入时把 JSON 里的 dataUrl 图片写回 IDB，photo 字段改成新 key
+          // ⭐ 导入时把 JSON 里的 dataUrl 图片写回 IDB，photo 字段改成新 key
         async function importItemPhotos(items) {
+            const addedKeys = [];
             // 若 IDB 未就绪，先主动初始化一次
             if (!PhotoDB.ready) {
                 try { await PhotoDB.init(); } catch (e) { }
@@ -8871,15 +8891,17 @@
                 if (hasDataUrl) {
                     toast('⚠️ IndexedDB 不可用，图片将以 base64 存在 localStorage 中（容易占满 5MB）', 5000);
                 }
-                return;
+                return addedKeys;
             }
             for (const it of items) {
                 if (it.photo && it.photo.startsWith('data:')) {
                     const k = uid('p_');
                     await PhotoDB.put(k, it.photo);
                     it.photo = k;
+                    addedKeys.push(k);
                 }
             }
+            return addedKeys;
         }
         document.addEventListener('click', async e => {
             if (e.target.closest('#onboardNext')) { onboardNext(); return; }
@@ -9683,6 +9705,7 @@
             if (act === 'exportPDF') { exportPDF(); return; }
             if (act === 'exportJson') { exportJSON(); return; }
             if (act === 'importData') { $('#fileInput').click(); return; }
+            if (act === 'undoImport') { undoLastImport(); return; }
             if (act === 'clearData') {
                 customConfirm(T('clear_title'), T('clear_msg'), () => {
                     Store.removeItem(LS_KEY);
@@ -9712,6 +9735,8 @@
                         try {
                             const items = importCSV(fr.result);
                             if (!items.length) throw new Error('empty');
+                            // ⭐ 导入前拍快照
+                            __lastImportSnapshot = { S: JSON.parse(JSON.stringify(S)), addedPhotoKeys: [], ts: Date.now() };
                             items.forEach(it => S.items.push(it));
                             S.stats.totalAdded = (S.stats.totalAdded || 0) + items.length;
                             save(); render();
@@ -9725,27 +9750,35 @@
                         try {
                             const data = JSON.parse(fr.result);
                             if (!data || !Array.isArray(data.items)) throw new Error('bad');
-                            // ⭐ 图片：dataUrl → IDB key
-                            await importItemPhotos(data.items);
                             const importedCount = data.items.length;
                             const currentCount = S.items.filter(i => !i.deletedAt).length;
                             customConfirm3(
                                 '导入 JSON 备份',
                                 `备份文件包含 ${importedCount} 件物品，当前已有 ${currentCount} 件物品。\n\n合并：保留现有数据，追加备份物品（ID 冲突自动改名；同名房间合并；找不到对应位置时变为未归位）\n覆盖：清空现有数据，完全变成备份的样子（不可恢复）`,
-                                () => {
+                                async () => {
                                     // 覆盖
-                                    S = Object.assign(defaultData(), data);
-                                    S.settings = Object.assign(defaultData().settings, data.settings || {});
-                                    S.stats = Object.assign(defaultData().stats, data.stats || {});
-                                    if (!S.barcodeCache) S.barcodeCache = {};
-                                    if (!S.achievements || typeof S.achievements !== 'object') S.achievements = {};
-                                    ensureDefaultCats();
-                                    ensureAllOthers();
-                                    save(); render(); toast(T('import_ok'));
+                                    try {
+                                        // ⭐ 导入前拍快照，并把图片写进 IDB
+                                        __lastImportSnapshot = { S: JSON.parse(JSON.stringify(S)), addedPhotoKeys: [], ts: Date.now() };
+                                        __lastImportSnapshot.addedPhotoKeys = await importItemPhotos(data.items);
+
+                                        S = Object.assign(defaultData(), data);
+                                        S.settings = Object.assign(defaultData().settings, data.settings || {});
+                                        S.stats = Object.assign(defaultData().stats, data.stats || {});
+                                        if (!S.barcodeCache) S.barcodeCache = {};
+                                        if (!S.achievements || typeof S.achievements !== 'object') S.achievements = {};
+                                        ensureDefaultCats();
+                                        ensureAllOthers();
+                                        save(); render(); toast(T('import_ok'));
+                                    } catch (err) { toast('覆盖失败'); console.error(err); }
                                 },
-                                () => {
+                                async () => {
                                     // 合并
                                     try {
+                                        // ⭐ 导入前拍快照，并把图片写进 IDB
+                                        __lastImportSnapshot = { S: JSON.parse(JSON.stringify(S)), addedPhotoKeys: [], ts: Date.now() };
+                                        __lastImportSnapshot.addedPhotoKeys = await importItemPhotos(data.items);
+
                                         const added = mergeImportedData(data);
                                         save(); render();
                                         toast(`已合并，新增 ${added} 件物品`, 2600);
