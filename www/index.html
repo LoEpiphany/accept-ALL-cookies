@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
@@ -3875,10 +3875,12 @@
     <script>
         // ================= 新增：App 原生导出逻辑开始 =================
         const isNativeApp = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
-
         async function handleExportFile(fileName, content, mimeType) {
-            // 如果在普通浏览器里运行
-            if (!isNativeApp) {
+            const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
+            const hasFilesystem = isNative && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+
+            // 浏览器环境，走普通下载
+            if (!hasFilesystem) {
                 const blob = new Blob([content], { type: mimeType });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -3890,27 +3892,55 @@
                 return;
             }
 
-            // 如果在 App 里运行（走原生分享）
-            try {
-                const { Filesystem, Share, Directory } = window.Capacitor.Plugins;
+            // 原生 App 环境，让用户选：分享还是保存
+            const action = await new Promise((resolve) => {
+                const mask = document.getElementById('confirmMask');
+                mask.innerHTML =
+                    '<div class="confirm-box">' +
+                    '<div class="cf-title">导出成功</div>' +
+                    '<div class="cf-msg" style="font-weight:500;font-size:14px;margin-bottom:20px;">你想如何处理该文件？</div>' +
+                    '<div class="cf-btns" style="flex-direction:column">' +
+                    '<button class="btn primary block" id="btnShareFile" style="margin-bottom:10px;">分享给他人</button>' +
+                    '<button class="btn primary block" id="btnSaveLocal" style="margin-bottom:10px;background:var(--fresh)">保存到本地</button>' +
+                    '<button class="btn block" id="btnCancelExport">取消</button>' +
+                    '</div></div>';
+                mask.classList.remove('hidden');
 
-                // 中文需要转 Base64 防止乱码
+                document.getElementById('btnShareFile').onclick = () => { mask.classList.add('hidden'); resolve('share'); };
+                document.getElementById('btnSaveLocal').onclick = () => { mask.classList.add('hidden'); resolve('save'); };
+                document.getElementById('btnCancelExport').onclick = () => { mask.classList.add('hidden'); resolve('cancel'); };
+            });
+
+            if (action === 'cancel') return;
+
+            try {
+                const { Filesystem, Share } = window.Capacitor.Plugins;
                 const base64Data = btoa(unescape(encodeURIComponent(content)));
 
-                const result = await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: Directory.Cache // 写入 App 临时缓存，无需权限
-                });
-
-                await Share.share({
-                    title: fileName,
-                    url: result.uri,
-                    dialogTitle: '保存或分享文件'
-                });
-
+                if (action === 'share') {
+                    // 用户选择：分享给别人
+                    const result = await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Data,
+                        directory: 'CACHE'
+                    });
+                    await Share.share({
+                        title: fileName,
+                        url: result.uri,
+                        dialogTitle: '分享文件'
+                    });
+                } else if (action === 'save') {
+                    // 用户选择：保存到本地（存到手机的 Documents 文件夹）
+                    const result = await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Data,
+                        directory: 'DOCUMENTS', // 暴露给文件管理器
+                        recursive: true
+                    });
+                    toast('文件已保存到手机「文件管理」的 Documents 文件夹中', 4000);
+                }
             } catch (e) {
-                console.error('原生导出失败:', e);
+                console.error('导出失败:', e);
                 toast('导出失败：' + (e.message || '未知错误'));
             }
         }
@@ -6932,7 +6962,14 @@
             toast(`正在识别第 ${window.__totalBatchCount - window.__batchPhotoQueue.length} 张，还剩 ${window.__batchPhotoQueue.length} 张...`, 3000);
 
             try {
-                const dataUrl = await compressImage(f, 384, 0.5);
+                // ⭐ 核心修改：兼容网页端的 File 对象 和 原生的 dataUrl 字符串
+                let dataUrl;
+                if (typeof f === 'string') {
+                    dataUrl = await compressDataUrl(f, 800, 0.6); // 原生多选走这里
+                } else {
+                    dataUrl = await compressImage(f, 384, 0.5);   // 网页端选图走这里
+                }
+
                 const result = await runHybridRecognition(dataUrl);
                 UI.tab = 'items'; render();
                 setTimeout(() => itemFormSheet(null, result || { photo: dataUrl }), 150);
@@ -8560,20 +8597,51 @@
                 return;
             }
 
-            // ⭐ 新增：调用原生相册
+            // ⭐ 新增：调用原生相册（支持多选）
             if (act === 'nativeGalleryPick') {
                 closeSheet();
                 if (!window.Capacitor.Plugins.Camera) return;
                 try {
-                    const image = await window.Capacitor.Plugins.Camera.getPhoto({
-                        quality: 80, resultType: 'dataUrl', source: 'PHOTOS', saveToGallery: false
+                    // 注意：pickImages 不支持 resultType: 'dataUrl'
+                    const result = await window.Capacitor.Plugins.Camera.pickImages({
+                        quality: 80,
+                        limit: 10
                     });
-                    toast('正在处理图片...', 2000);
-                    const compressed = await compressDataUrl(image.dataUrl, 800, 0.6);
-                    const result = await runHybridRecognition(compressed);
-                    UI.tab = 'items'; render();
-                    setTimeout(() => itemFormSheet(null, result || { photo: compressed }), 120);
-                } catch (err) { console.warn('相册取消', err); }
+
+                    if (!result.photos || result.photos.length === 0) return;
+
+                    toast('正在读取图片...', 2000);
+                    const dataUrls = [];
+
+                    // ⭐ 核心修复：通过 webPath 读取图片，转换为 Base64
+                    for (const photo of result.photos) {
+                        const res = await fetch(photo.webPath);
+                        const blob = await res.blob();
+                        const dataUrl = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                        dataUrls.push(dataUrl);
+                    }
+
+                    if (dataUrls.length === 1) {
+                        // 单张：直接识别
+                        const compressed = await compressDataUrl(dataUrls[0], 800, 0.6);
+                        const resData = await runHybridRecognition(compressed);
+                        UI.tab = 'items'; render();
+                        setTimeout(() => itemFormSheet(null, resData || { photo: compressed }), 120);
+                    } else {
+                        // 多张：塞进队列，启动批量引擎
+                        window.__batchPhotoQueue = dataUrls;
+                        window.__totalBatchCount = dataUrls.length;
+                        UI.tab = 'items';
+                        render();
+                        processNextBatchPhoto();
+                    }
+                } catch (err) {
+                    console.warn('相册取消或失败', err);
+                }
                 return;
             }
             if (act === 'takePhoto') {

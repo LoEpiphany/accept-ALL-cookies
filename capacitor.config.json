@@ -1,5 +1,11 @@
 {
   "appId": "com.whereis.app",
   "appName": "万物归序",
-  "webDir": "www"
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*"
+    ]
+  }
 }
