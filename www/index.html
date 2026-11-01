@@ -3915,7 +3915,18 @@
 
             try {
                 const { Filesystem, Share } = window.Capacitor.Plugins;
-                const base64Data = btoa(unescape(encodeURIComponent(content)));
+
+                // ⭐ 核心修改点：用 FileReader 代替 btoa，彻底解决大图片导致的闪退和卡死
+                const blob = new Blob([content], { type: mimeType });
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
 
                 if (action === 'share') {
                     // 用户选择：分享给别人
@@ -3934,7 +3945,7 @@
                     const result = await Filesystem.writeFile({
                         path: fileName,
                         data: base64Data,
-                        directory: 'DOCUMENTS', // 暴露给文件管理器
+                        directory: 'DOCUMENTS',
                         recursive: true
                     });
                     toast('文件已保存到手机「文件管理」的 Documents 文件夹中', 4000);
@@ -7820,12 +7831,12 @@
 
             const prompt = `请仔细观察照片，提取物品信息，必须严格返回 JSON 格式，不要输出任何 markdown 代码块或额外解释：
 {
-                  "name": "物品名称。药品格式：品牌+通用名+功效；其他格式：品牌+品名。限制15字内，无标点。",
-                  "prodDate": "生产日期。格式为 YYYY-MM-DD。看不清填空字符串。",
-                  "shelfLife": 数字，保质期天数。几个月或几年请换算成天，没有写填 0,
-                  "quantity": 数字，库存件数。⚠️ 几乎总是填 1（即"几件商品"）。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,
-                  "unit": "计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回'抽'、'片'、'克'、'毫升'、'升'等小单位，除非物品明确是散装称重。看不清填空字符串。",
-                  "spec": "物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。"
+                      "name": "物品名称。药品格式：品牌+通用名+功效；其他格式：品牌+品名。限制15字内，无标点。",
+                      "prodDate": "生产日期。格式为 YYYY-MM-DD。看不清填空字符串。",
+                      "shelfLife": 数字，保质期天数。几个月或几年请换算成天，没有写填 0,
+                      "quantity": 数字，库存件数。⚠️ 几乎总是填 1（即"几件商品"）。只有当物品明确是散装称重（如散装米、散装肉、散装蔬菜）时，才填具体重量数值,
+                      "unit": "计量单位。⚠️ 必须用大包装单位：包/盒/瓶/袋/罐/件/支/条/卷/个。不要返回'抽'、'片'、'克'、'毫升'、'升'等小单位，除非物品明确是散装称重。看不清填空字符串。",
+                      "spec": "物品的净含量/规格信息，例如 500g、120抽、500ml。若无则填空字符串。"
 }`;
 
             const body = {
@@ -8230,7 +8241,14 @@
                 save(); render({ noScroll: true }); toast('已撤销导入');
             }, { danger: true, okText: '确认撤销' });
         }
-        function exportJSON() {
+        async function exportJSON() {
+            // 如果 PhotoDB 没就绪，先等一下
+            if (!PhotoDB.ready) {
+                toast('正在准备图片数据，请稍候...', 3000);
+                await PhotoDB.init();
+            }
+            toast('正在打包数据，图片较多时可能需要几秒钟...', 3000);
+
             const exportData = JSON.parse(JSON.stringify(S));
             if (exportData.settings) {
                 delete exportData.settings.llmApiKey;
@@ -8238,6 +8256,8 @@
                 delete exportData.settings.baiduSecretKey;
                 delete exportData.settings.aiApiKey;
             }
+
+            // 把 IDB 里的图片提取出来，塞进 JSON
             exportData.items.forEach(it => {
                 if (it.photo && !it.photo.startsWith('data:')) {
                     it.photo = PhotoDB.get(it.photo) || '';
@@ -8247,7 +8267,6 @@
             const content = JSON.stringify(exportData, null, 2);
             const fileName = 'wanwu-' + todayStr() + '.json';
 
-            // ⭐ 调用统一导出函数
             handleExportFile(fileName, content, 'application/json');
         }
         function parseCSV(text) {
@@ -9445,11 +9464,11 @@
             console.error('初始化崩溃:', err);
             // 尝试兜底：清空数据重试
             document.getElementById('view').innerHTML = `
-                                <div class="empty" style="padding-top:100px;">
-                                    <div style="font-size:16px;color:var(--danger);font-weight:600;margin-bottom:10px;">应用启动异常</div>
-                                    <div style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:20px;">${err.message}</div>
-                                    <button class="btn primary" onclick="localStorage.clear();location.reload();">清除本地数据并重试</button>
-                                </div>`;
+                                    <div class="empty" style="padding-top:100px;">
+                                        <div style="font-size:16px;color:var(--danger);font-weight:600;margin-bottom:10px;">应用启动异常</div>
+                                        <div style="font-size:12px;color:var(--text-3);word-break:break-all;margin-bottom:20px;">${err.message}</div>
+                                        <button class="btn primary" onclick="localStorage.clear();location.reload();">清除本地数据并重试</button>
+                                    </div>`;
             removeSplash();
         }
 
