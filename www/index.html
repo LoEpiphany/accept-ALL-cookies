@@ -3947,6 +3947,17 @@
                         if (mode === 'session') { sessionStorage.setItem(k, v); return true; }
                         return false;
                     } catch (e) {
+                        // ⭐ 区分「空间满了」和「浏览器禁用」
+                        const isQuota = e && (
+                            e.name === 'QuotaExceededError' ||
+                            e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+                            e.code === 22 || e.code === 1014
+                        );
+                        if (isQuota) {
+                            // 空间不足：不降级，只是这次失败
+                            return false;
+                        }
+                        // 真正的禁用/安全错误才降级
                         if (mode === 'local') {
                             mode = 'session';
                             try { sessionStorage.setItem(k, v); return true; } catch (e2) { mode = 'memory'; }
@@ -4134,28 +4145,42 @@
         /* ★ 合并导入数据：物品追加、分类位置去重补齐、成就并集、stats 取较大值 ★ */
         function mergeImportedData(data) {
             const before = S.items.length;
-            // 1. 物品：id 冲突则重新生成，避免覆盖
+
+            // 1. ⭐ 位置：按名字匹配，不新增。匹配不到的物品位置变空（未归位）
+            const locIdMap = {};
+            const importedLocs = data.locations || [];
+            importedLocs.filter(l => !l.parentId).forEach(l => {
+                const zh = (l.name && l.name.zh) || '';
+                const existing = S.locations.find(e => !e.parentId && ((e.name && e.name.zh) || '') === zh);
+                locIdMap[l.id] = existing ? existing.id : '';
+            });
+            importedLocs.filter(l => l.parentId).forEach(l => {
+                const mappedParent = locIdMap[l.parentId];
+                if (!mappedParent) { locIdMap[l.id] = ''; return; }
+                const zh = (l.name && l.name.zh) || '';
+                const existing = S.locations.find(e => e.parentId === mappedParent && ((e.name && e.name.zh) || '') === zh);
+                locIdMap[l.id] = existing ? existing.id : '';
+            });
+
+            // 2. 物品：id 冲突重新生成，locId 通过映射翻译
             const existingIds = new Set(S.items.map(i => i.id));
             (data.items || []).forEach(it => {
-                if (existingIds.has(it.id)) {
-                    const clone = JSON.parse(JSON.stringify(it));
-                    clone.id = uid('i_');
-                    S.items.push(clone);
-                } else {
-                    S.items.push(it);
-                    existingIds.add(it.id);
+                const clone = JSON.parse(JSON.stringify(it));
+                if (existingIds.has(clone.id)) clone.id = uid('i_');
+                existingIds.add(clone.id);
+                if (clone.locId) {
+                    const mapped = locIdMap[clone.locId];
+                    clone.locId = (mapped === undefined) ? '' : mapped;
                 }
+                S.items.push(clone);
             });
-            // 2. 分类：按 id 去重补齐
+
+            // 3. 分类：按 id 去重补齐
             const catIds = new Set(S.categories.map(c => c.id));
             (data.categories || []).forEach(c => {
                 if (!catIds.has(c.id)) S.categories.push(c);
             });
-            // 3. 位置：按 id 去重补齐
-            const locIds = new Set(S.locations.map(l => l.id));
-            (data.locations || []).forEach(l => {
-                if (!locIds.has(l.id)) S.locations.push(l);
-            });
+
             // 4. 成就：取并集
             if (data.achievements) {
                 Object.keys(data.achievements).forEach(k => {
@@ -4180,7 +4205,7 @@
                     }
                 });
             }
-            // 7. settings 保留当前（用户偏好不覆盖）
+            // 7. settings 保留当前
             ensureDefaultCats();
             ensureAllOthers();
             return S.items.length - before;
@@ -5621,12 +5646,28 @@
         function save() {
             clearTimeout(_saveT);
             _saveT = setTimeout(() => {
+                let json = '';
+                try { json = JSON.stringify(S); } catch (e) { }
+                const bytes = json ? new Blob([json]).size : 0;
+                // ⭐ 超 4MB 提前警告（localStorage 上限约 5MB）
+                if (bytes > 4 * 1024 * 1024 && !_saveWarned) {
+                    _saveWarned = true;
+                    const dataUrlCount = S.items.filter(i => i.photo && i.photo.startsWith('data:')).length;
+                    setTimeout(() => {
+                        toast('⚠️ 本地数据已达 ' + (bytes / 1024 / 1024).toFixed(1) + 'MB（localStorage 上限约 5MB）'
+                            + (dataUrlCount > 0 ? '，其中 ' + dataUrlCount + ' 张图片以 base64 形式存储，建议迁移' : ''),
+                            6000);
+                    }, 400);
+                }
                 let ok = false;
-                try { ok = Store.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { ok = false; }
+                try { ok = Store.setItem(LS_KEY, json); } catch (e) { ok = false; }
                 if (!ok && !_saveWarned) {
                     _saveWarned = true;
                     setTimeout(() => {
-                        const warn = Store.mode === 'memory' ? T('storage_warn_memory') : T('storage_warn_session');
+                        const isReallyDisabled = (Store.mode === 'memory' || Store.mode === 'session');
+                        const warn = isReallyDisabled
+                            ? (Store.mode === 'memory' ? T('storage_warn_memory') : T('storage_warn_session'))
+                            : '⚠️ localStorage 空间不足（约 5MB 上限），本次保存失败';
                         toast(warn, 5000);
                     }, 400);
                 }
@@ -8736,13 +8777,20 @@
             return __h2pPromise;
         }
         function exportJSON() {
-            const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+            // ⭐ 把 photo key 解析成 dataUrl 一起导出
+            const exportData = JSON.parse(JSON.stringify(S));
+            exportData.items.forEach(it => {
+                if (it.photo && !it.photo.startsWith('data:')) {
+                    it.photo = PhotoDB.get(it.photo) || '';
+                }
+            });
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             a.download = 'wanwu-' + todayStr() + '.json';
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-            toast(T('export_done') + ' JSON');
+            toast(T('export_done') + ' JSON（含图片）');
         }
         function parseCSV(text) {
             const rows = [];
@@ -8811,6 +8859,27 @@
                 });
             }
             return newItems;
+        }
+        // ⭐ 导入时把 JSON 里的 dataUrl 图片写回 IDB，photo 字段改成新 key
+        async function importItemPhotos(items) {
+            // 若 IDB 未就绪，先主动初始化一次
+            if (!PhotoDB.ready) {
+                try { await PhotoDB.init(); } catch (e) { }
+            }
+            if (!PhotoDB.ready) {
+                const hasDataUrl = items.some(it => it.photo && it.photo.startsWith('data:'));
+                if (hasDataUrl) {
+                    toast('⚠️ IndexedDB 不可用，图片将以 base64 存在 localStorage 中（容易占满 5MB）', 5000);
+                }
+                return;
+            }
+            for (const it of items) {
+                if (it.photo && it.photo.startsWith('data:')) {
+                    const k = uid('p_');
+                    await PhotoDB.put(k, it.photo);
+                    it.photo = k;
+                }
+            }
         }
         document.addEventListener('click', async e => {
             if (e.target.closest('#onboardNext')) { onboardNext(); return; }
@@ -9652,15 +9721,17 @@
                     };
                     fr.readAsText(f);
                 } else {
-                    fr.onload = () => {
+                    fr.onload = async () => {
                         try {
                             const data = JSON.parse(fr.result);
                             if (!data || !Array.isArray(data.items)) throw new Error('bad');
+                            // ⭐ 图片：dataUrl → IDB key
+                            await importItemPhotos(data.items);
                             const importedCount = data.items.length;
                             const currentCount = S.items.filter(i => !i.deletedAt).length;
                             customConfirm3(
                                 '导入 JSON 备份',
-                                `备份文件包含 ${importedCount} 件物品，当前已有 ${currentCount} 件物品。\n\n合并：保留现有数据，追加备份物品（ID 冲突自动改名）\n覆盖：清空现有数据，完全变成备份的样子（不可恢复）`,
+                                `备份文件包含 ${importedCount} 件物品，当前已有 ${currentCount} 件物品。\n\n合并：保留现有数据，追加备份物品（ID 冲突自动改名；同名房间合并；找不到对应位置时变为未归位）\n覆盖：清空现有数据，完全变成备份的样子（不可恢复）`,
                                 () => {
                                     // 覆盖
                                     S = Object.assign(defaultData(), data);
@@ -9687,6 +9758,7 @@
                     };
                     fr.readAsText(f);
                 }
+
             }
         });
         document.addEventListener('focusout', e => {
@@ -9968,7 +10040,6 @@
                 return;
             }
             // Esc 关闭弹窗
-            //dddddd
             if (e.key === 'Escape') {
                 const sheet = document.querySelector('.sheet-mask.show');
                 if (sheet) { closeSheet(); return; }
