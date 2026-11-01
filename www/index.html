@@ -6996,6 +6996,32 @@
             });
             return h;
         }
+        // ⭐ 冷藏/冷冻：内联推荐卡片，不覆盖表单
+        function showShelfRecommendInline(locId, itemName) {
+            const old = document.getElementById('shelfRecInline');
+            if (old) old.remove();
+            const rec = recommendShelfDays(itemName, locId);
+            if (!rec || !rec.days) return;
+            const prefixKey = rec.type === 'freezer' ? 'shelf_recommend_freezer'
+                : (rec.type === 'fresh' ? 'shelf_recommend_fresh' : 'shelf_recommend_default');
+            const descKey = rec.type === 'freezer' ? 'shelf_freezer_desc'
+                : (rec.type === 'fresh' ? 'shelf_fresh_desc' : 'shelf_default_desc');
+            const locPanel = document.getElementById('locPanel');
+            if (!locPanel || !locPanel.parentElement) return;
+            const icon = (rec.type === 'freezer' ? ICON.snowflake : ICON.fridge)
+                .replace('<svg', '<svg style="width:15px;height:15px;flex:0 0 15px;margin-top:1px"');
+            locPanel.parentElement.insertAdjacentHTML('afterend',
+                '<div id="shelfRecInline" class="match-hint" style="align-items:flex-start;padding:10px 12px">' +
+                icon +
+                '<div class="txt">' +
+                '<div style="font-weight:600">' + esc(T('shelf_recommend_title')) + '</div>' +
+                '<div style="font-size:11.5px;margin-top:2px;opacity:.85">' + esc(T(prefixKey)) + ' · ' + esc(T(descKey)) + '</div>' +
+                '<div style="font-size:11.5px;margin-top:2px;font-weight:600">' + formatDays(rec.days) + '</div>' +
+                '</div>' +
+                '<button class="act" data-act="applyInlineShelf" data-days="' + rec.days + '">' + T('apply') + '</button>' +
+                '</div>'
+            );
+        }
         /* ★ 冷藏/冷冻保质期推荐弹窗 ★ */
         function shelfRecommendSheet(locId, itemName) {
             const rec = recommendShelfDays(itemName, locId);
@@ -9296,6 +9322,18 @@
                 toast(T('applied'));
                 return;
             }
+            if (act === 'applyInlineShelf') {
+                const days = parseInt(el.dataset.days, 10) || 0;
+                if (days > 0) {
+                    const shelfEl = $('#f_shelf'); if (shelfEl) shelfEl.value = days;
+                    const pdEl = $('#f_prod'); if (pdEl && !pdEl.value) pdEl.value = todayStr();
+                    const expEl = $('#f_exp'); if (expEl && pdEl && pdEl.value) expEl.value = addDays(pdEl.value, days);
+                }
+                toast(T('applied'));
+                const recEl = document.getElementById('shelfRecInline');
+                if (recEl) recEl.remove();
+                return;
+            }
             if (act === 'toggleOpened') {
                 const sw = el;
                 sw.classList.toggle('on');
@@ -9332,14 +9370,15 @@
                 if (panel) panel.classList.add('hidden');
                 const picker = document.querySelector('.loc-picker');
                 if (picker) picker.classList.remove('open');
-                // ★ 选择冷藏/冷冻区后，弹窗推荐保质期
+                // ⭐ 冷藏/冷冻区：内联显示推荐，不覆盖表单
+                const oldRec = document.getElementById('shelfRecInline');
+                if (oldRec) oldRec.remove();
                 if (isFridgeLoc(id)) {
                     const nameEl = $('#f_name');
                     const name = nameEl ? nameEl.value.trim() : '';
-                    if (name) {
-                        setTimeout(() => { shelfRecommendSheet(id, name); }, 180);
-                    }
+                    if (name) setTimeout(() => showShelfRecommendInline(id, name), 60);
                 }
+                
                 return;
             }
             if (act === 'openLayoutManage') { layoutManageSheet(false); return; }
