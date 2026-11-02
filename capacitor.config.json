@@ -7,5 +7,11 @@
     "allowNavigation": [
       "*"
     ]
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_wanwu",
+      "iconColor": "#4A9D7F"
+    }
   }
 }

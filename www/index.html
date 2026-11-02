@@ -1,6 +1,7 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="light">
 <head>
+    <!--meta(viewport/themecolor/PWA相关)-->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
     <meta name="theme-color" content="#4A9D7F">
@@ -9532,7 +9533,226 @@
                 if (saveBtn) { saveBtn.click(); return; }
             }
         });
+        /* ================= 万物归序：本地横幅通知模块 ================= */
+        const LocalNotify = (() => {
+            const DAILY_ID = 1001;
+            const EXP_START = 2000;
+            const EXP_END = 19999;
+            const CHANNEL_ID = 'wanwu_reminders_v1';
+            let timer = null;
+            let listenerBound = false;
+            let channelReady = false;
 
+            function LN() {
+                return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
+            }
+
+            function native() {
+                return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && LN());
+            }
+
+            async function ensurePermission(request) {
+                const ln = LN();
+                if (!ln) return false;
+                try {
+                    let p = await ln.checkPermissions();
+                    if (p.display !== 'granted' && request) {
+                        p = await ln.requestPermissions();
+                    }
+                    return p.display === 'granted';
+                } catch (e) {
+                    console.warn('通知权限检查失败:', e);
+                    return false;
+                }
+            }
+
+            async function ensureChannel() {
+                const ln = LN();
+                if (!ln || channelReady || !ln.createChannel) return;
+                try {
+                    // importance: 5 是最高级别，专门用来确保弹出横幅（Heads-up）
+                    await ln.createChannel({
+                        id: CHANNEL_ID,
+                        name: '万物归序提醒',
+                        description: '每日整理与临期提醒',
+                        importance: 5,
+                        visibility: 1,
+                        sound: null
+                    });
+                    channelReady = true;
+                } catch (e) {
+                    console.warn('创建通知渠道失败:', e);
+                }
+            }
+            async function cancelIds(ids) {
+                const ln = LN();
+                if (!ln || !ids || !ids.length) return;
+                try {
+                    await ln.cancel({ notifications: ids.map(id => ({ id })) });
+                } catch (e) { console.warn('取消通知失败:', e); }
+            }
+
+            async function cancelRange(start, end) {
+                const ln = LN();
+                if (!ln) return;
+                try {
+                    const pending = await ln.getPending();
+                    const oldIds = (pending.notifications || []).filter(n => n.id >= start && n.id <= end).map(n => n.id);
+                    if (oldIds.length) await cancelIds(oldIds);
+                } catch (e) { console.warn('取消区间通知失败:', e); }
+            }
+
+            function parseRemindTime() {
+                const raw = (S && S.settings && S.settings.remindTime) || '22:00';
+                const parts = String(raw).split(':').map(Number);
+                const h = Number.isFinite(parts[0]) ? Math.max(0, Math.min(23, parts[0])) : 22;
+                const m = Number.isFinite(parts[1]) ? Math.max(0, Math.min(59, parts[1])) : 0;
+                return [h, m];
+            }
+
+            async function scheduleDaily() {
+                const ln = LN();
+                if (!ln) return;
+                await cancelIds([DAILY_ID]);
+
+                const [h, m] = parseRemindTime();
+                const at = new Date();
+                at.setHours(h, m, 0, 0);
+                if (at.getTime() <= Date.now() + 5000) { at.setDate(at.getDate() + 1); }
+
+                try {
+                    await ln.schedule({
+                        notifications: [{
+                            id: DAILY_ID,
+                            title: '🌿 万物归序 · 每日整理',
+                            body: '花一分钟记录今天的物品变化吧（若今天已记录请忽略）',
+                            channelId: CHANNEL_ID,
+                            schedule: { at: at, repeats: true, every: 'day', allowWhileIdle: true },
+                            extra: { type: 'daily' }
+                        }]
+                    });
+                } catch (e) { console.warn('安排每日提醒失败:', e); }
+            }
+
+            async function scheduleExpiry() {
+                const ln = LN();
+                if (!ln || !S) return;
+                await cancelRange(EXP_START, EXP_END);
+
+                const warnDays = Math.max(0, parseInt(S.settings.warnDays, 10) || 7);
+                const list = activeItems().filter(it => (+it.qty || 0) > 0);
+                const notifications = [];
+                let idx = 0;
+
+                list.forEach(it => {
+                    const expStr = effectiveExpDate(it);
+                    if (!expStr) return;
+                    const expDays = daysUntil(expStr);
+                    if (expDays === null || expDays < 0) return; // 只给临期的发提醒，已经过期的不管
+
+                    const expAt = new Date(expStr + 'T09:00:00');
+                    if (isNaN(expAt.getTime())) return;
+
+                    const remindAt = new Date(expAt.getTime());
+                    remindAt.setDate(remindAt.getDate() - warnDays);
+
+                    let at = remindAt;
+                    // 如果提醒点过去了，改到过期日当天9点
+                    if (at.getTime() <= Date.now()) {
+                        if (expAt.getTime() > Date.now()) { at = expAt; }
+                        else { return; }
+                    }
+                    if (at.getTime() <= Date.now()) return;
+
+                    notifications.push({
+                        id: EXP_START + idx++,
+                        title: '⚠️「' + (it.name || '物品') + '」快过期了',
+                        body: '将于 ' + expStr + ' 过期，记得及时处理',
+                        channelId: CHANNEL_ID,
+                        schedule: { at: at, allowWhileIdle: true },
+                        extra: { itemId: it.id }
+                    });
+                });
+
+                if (notifications.length) {
+                    try {
+                        await ln.schedule({ notifications });
+                        console.log('已安排临期提醒数量:', notifications.length);
+                    } catch (e) { console.warn('安排临期提醒失败:', e); }
+                }
+            }
+            async function sync() {
+                if (!native() || !S) return;
+                const ok = await ensurePermission(false);
+                if (!ok) return;
+                await ensureChannel();
+                await scheduleDaily();
+                await scheduleExpiry();
+            }
+
+            function syncDebounced() {
+                if (!native()) return;
+                clearTimeout(timer);
+                timer = setTimeout(() => { sync().catch(e => console.warn('同步通知失败:', e)); }, 1500);
+            }
+
+            function bindActionListener() {
+                const ln = LN();
+                if (!ln || listenerBound) return;
+                listenerBound = true;
+                try {
+                    ln.addListener('localNotificationActionPerformed', (event) => {
+                        const extra = (event && event.notification && event.notification.extra) || {};
+                        // 点击通知后的跳转逻辑
+                        if (extra.itemId) {
+                            UI.tab = 'items';
+                            render({ noScroll: true });
+                            setTimeout(() => { try { itemDetailSheet(extra.itemId); } catch (e) { } }, 180);
+                        } else {
+                            UI.tab = 'home';
+                            render();
+                        }
+                    });
+                } catch (e) { console.warn('绑定通知点击失败:', e); }
+            }
+
+            function bindResumeListener() {
+                const App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+                if (!App || window.__wanwuNotifyResumeBound) return;
+                window.__wanwuNotifyResumeBound = true;
+                try {
+                    App.addListener('resume', () => { syncDebounced(); });
+                } catch (e) { }
+            }
+
+            async function init() {
+                if (!native()) return;
+                await ensureChannel();
+                bindActionListener();
+                bindResumeListener();
+                const ok = await ensurePermission(true); // 请求权限
+                if (!ok) {
+                    toast('通知权限未开启，系统横幅不会显示，请去系统设置开启', 3500);
+                    return;
+                }
+                await sync();
+            }
+
+            return { init, sync, syncDebounced, requestPermission: () => ensurePermission(true) };
+        })();
+
+        // 每次 save() 后自动防抖重排通知（修改物品、修改时间后自动生效）
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            const __wanwuOrigSave = save;
+            save = function () {
+                __wanwuOrigSave.apply(this, arguments);
+                LocalNotify.syncDebounced();
+            };
+        }
+
+        // 启动后延迟 1.5 秒初始化
+        setTimeout(() => { LocalNotify.init(); }, 1500);
+        /* ================= 通知模块结束 ================= */
     </script>
 </body>
 </html>
